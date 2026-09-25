@@ -1,0 +1,122 @@
+[
+ {
+  "name": "q0_env",
+  "file": "q0_environment.txt",
+  "from": "$ lscpu",
+  "lines": 22
+ },
+ {
+  "name": "validate",
+  "file": "validate_shadow.txt",
+  "from": "$ build/kerr_validate",
+  "lines": 13
+ },
+ {
+  "name": "raptor_rk4",
+  "file": "raptor_compare.txt",
+  "from": "$ build/raptor_compare --res 100 --method rk4 --step 0.03 --dump",
+  "lines": 19
+ },
+ {
+  "name": "raptor_rk2",
+  "file": "raptor_compare.txt",
+  "from": "$ build/raptor_compare --res 100 --method rk2",
+  "lines": 19
+ },
+ {
+  "name": "parallel_double",
+  "file": "parallel.txt",
+  "from": "double, 256x256",
+  "lines": 18
+ },
+ {
+  "name": "q1_micro",
+  "file": "q1_microbench.txt",
+  "from": "$ build/q1_base",
+  "lines": 20
+ },
+ {
+  "name": "q1_asm",
+  "file": "q1_microbench.txt",
+  "from": "$ bash -c objdump",
+  "lines": 12
+ },
+ {
+  "name": "q1_kerr",
+  "file": "q1_kerr_precision.txt",
+  "from": "$ build/kerr_precision --res 48 --reps 3",
+  "lines": 11
+ },
+ {
+  "name": "cachegrind",
+  "file": "cachegrind.txt",
+  "from": "$ build/cache_patterns row float",
+  "lines": 72
+ },
+ {
+  "name": "q2_special",
+  "file": "q2_sin.txt",
+  "from": "Special values",
+  "lines": 7
+ },
+ {
+  "name": "q2_ifunc",
+  "file": "q2_sin.txt",
+  "from": "$ ./scripts/which_sin.sh",
+  "lines": 5
+ },
+ {
+  "name": "q2_sin",
+  "file": "q2_sin.txt",
+  "from": "$ build/q2_sin",
+  "lines": 23
+ },
+ {
+  "name": "q3_strict",
+  "file": "q3_fastmath.txt",
+  "from": "$ build/q3_strict",
+  "lines": 15
+ },
+ {
+  "name": "q3_fast",
+  "file": "q3_fastmath.txt",
+  "from": "$ build/q3_fast",
+  "lines": 16
+ },
+ {
+  "name": "q3_kerr",
+  "file": "q3_fastmath.txt",
+  "from": "$ env OMP_NUM_THREADS=1 build/kerr_render_O3 --type double",
+  "lines": 18
+ },
+ {
+  "name": "q4_glibc",
+  "file": "q4_printf.txt",
+  "from": "$ build/q4_printf",
+  "lines": 24
+ },
+ {
+  "name": "q5_platforms",
+  "file": "q5_env.txt",
+  "from": "$ build/q5_x86_glibc",
+  "lines": 40
+ },
+ {
+  "name": "q5_diffs",
+  "file": "q5_env.txt",
+  "from": "$ python3 scripts/compare.py libm build/q5_x86_glibc.bin build/q5_x86_glibc_nofma.bin",
+  "lines": 40
+ },
+ {
+  "name": "q5_threads",
+  "file": "q5_env.txt",
+  "from": "$ env OMP_NUM_THREADS=1 build/q5_threads",
+  "lines": 16
+ },
+ {
+  "name": "q6",
+  "file": "q6_extra.txt",
+  "from": "$ build/q6_extra",
+  "lines": 28
+ }
+]

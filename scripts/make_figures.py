@@ -24,7 +24,7 @@ os.makedirs(OUT, exist_ok=True)
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 plt.rcParams.update({
-    "font.family": ["DejaVu Sans", "WenQuanYi Zen Hei"],
+    "font.family": ["DejaVu Sans"],
     "font.size": 9, "axes.edgecolor": INK2, "axes.labelcolor": INK, "xtick.color": INK2, "ytick.color": INK2,
     "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6, "axes.axisbelow": True,
     "axes.spines.top": False, "axes.spines.right": False, "legend.frameon": False,
@@ -48,9 +48,10 @@ def fig_render():
     d = kimg.load(os.path.join(BUILD, "render_double.bin"))
     s = kimg.load(os.path.join(BUILD, "render_shadow.bin"))
     ext = [-20, 20, -20, 20]
-    fig, ax = plt.subplots(1, 3, figsize=(11, 3.8))
+    fig, ax = plt.subplots(1, 3, figsize=(13, 4.2))
+    fig.subplots_adjust(wspace=0.35)
     ax[0].imshow(d["I"] ** 0.5, origin="lower", cmap="afmhot", extent=ext)
-    ax[0].set_title("thin disk, a=0.9375, i=60° (double, RK4)")
+    ax[0].set_title("thin disk (double, RK4)")
     ax[1].imshow(s["status"] == 1, origin="lower", cmap="Greys", extent=ext)
     # analytic Bardeen curve
     a, inc = 0.9375, np.radians(60)
@@ -65,10 +66,10 @@ def fig_render():
     ax[1].plot(al, -be, color=SERIES[1], lw=1.5)
     ax[1].set_xlim(-8, 8), ax[1].set_ylim(-8, 8)
     ax[1].legend(loc="upper right", fontsize=7)
-    ax[1].set_title("captured rays (black) vs analytic shadow")
+    ax[1].set_title("captured rays vs analytic curve")
     im = ax[2].imshow(d["steps"], origin="lower", cmap="Blues", extent=ext)
     fig.colorbar(im, ax=ax[2], fraction=0.046, label="RK4 steps per ray")
-    ax[2].set_title("cost per ray (load imbalance)")
+    ax[2].set_title("RK4 steps per ray")
     for x in ax:
         x.set_xlabel("α [M]"), x.set_ylabel("β [M]"), x.grid(False)
     save(fig, "render.png")
@@ -103,7 +104,7 @@ def parse_micro(txt, which):
     block = txt.split(which, 1)[1]
     rows = {}
     for line in block.splitlines()[3:9]:
-        m = re.match(r"(\S+(?: double)?)\s+\d+ B \|(.*)\|(.*)\|", line)
+        m = re.match(r"(\S+(?: double)?)\s+\d+ B \|(.*)\|(.*)$", line)
         if m:
             rows[m.group(1)] = ([float(x) for x in m.group(2).split()], [float(x) for x in m.group(3).split()])
     return rows
@@ -123,7 +124,8 @@ def fig_q1():
         for j, t in enumerate(types):
             if t not in data:
                 continue
-            ax.bar(np.arange(5) + (j - 2) * w, data[t][k], w * 0.88, color=SERIES[j], label=t)
+            # matplotlib hides legend labels starting with "_"
+            ax.bar(np.arange(5) + (j - 2) * w, data[t][k], w * 0.88, color=SERIES[j], label=t.lstrip("_"))
         ax.set_yscale("log")
         ax.set_xticks(range(5), ops)
         ax.set_title(title)
@@ -173,9 +175,9 @@ def fig_parallel():
     ax.set_yticks(y, names)
     ax.invert_yaxis()
     ax.axvline(4, color=INK2, lw=1, ls="--")
-    ax.text(4.1, len(names) - 0.6, "4 cores", color=INK2, fontsize=7)
+    ax.text(4.4, 0.2, "4 cores", color=INK2, fontsize=7)
     ax.set_xlabel("speed-up over serial scalar double/float (same image)")
-    ax.legend(loc="lower right")
+    ax.legend(loc="center right")
     save(fig, "parallel.png")
 
 
@@ -210,7 +212,7 @@ def fig_chaos():
     amp = np.array([float(r[3]) for r in rows])
     fig, ax = plt.subplots(figsize=(5.5, 3.5))
     ax.loglog(d, amp, color=SERIES[0], marker="o", ms=5, label="measured (double, DP45 rtol 1e-12)")
-    ax.loglog(d, amp[0] * d[0] / d, color=INK2, lw=1, ls="--", label="∝ 1/δ")
+    ax.loglog(d, amp[-1] * d[-1] / d, color=INK2, lw=1, ls="--", label="∝ 1/δ")
     ax.invert_xaxis()
     ax.set_xlabel("δ = distance to the shadow edge (relative, log)")
     ax.set_ylabel("error amplification (log)")

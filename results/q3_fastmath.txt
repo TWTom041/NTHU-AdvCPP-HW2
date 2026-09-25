@@ -1,0 +1,51 @@
+$ build/q3_strict
+=== build: -O3 ===
+MXCSR = 0x1f80  (FTZ=0, DAZ=0)  <- crtfastmath.o sets these at program start
+[1] contains_nan(v) with v[500] = 0.0/0.0      -> true
+    is_inf(1e308 * 10)                          -> true
+[2] sum of 1e7 x 0.1f: naive = 1087937.000000   kahan = 1000000.000000   (exact 1000000.0149...)
+[3] dot(a, b) over 2^20 terms of mixed magnitude = -6241446.2278898535
+[4] add_zero(-0.0) = 0,  1/add_zero(-0.0) = inf
+[5] x/3 for 1e6 values: 0 results differ from correctly-rounded x/3 (hash e8248bcc452606bb)
+[6] 1e-308 * 1e-5 = 1e-313   (subnormal kept)
+    4.9e-324 (smallest subnormal) * 1e300 = 4.94066e-24
+[7] sqrt(-1) = -nan, errno = EDOM
+[8] dot() speed: 0.828 ns per element  (checksum -1.24829e+09)
+
+$ build/q3_fast
+=== build: -O3 -ffast-math ===
+MXCSR = 0x9fc0  (FTZ=1, DAZ=1)  <- crtfastmath.o sets these at program start
+[1] contains_nan(v) with v[500] = 0.0/0.0      -> false
+    is_inf(1e308 * 10)                          -> false
+[2] sum of 1e7 x 0.1f: naive = 975599.125000   kahan = 975599.125000   (exact 1000000.0149...)
+[3] dot(a, b) over 2^20 terms of mixed magnitude = -6241446.2278382154
+[4] add_zero(-0.0) = -0,  1/add_zero(-0.0) = -inf
+[5] x/3 for 1e6 values: 333328 results differ from correctly-rounded x/3 (hash 4b594d8d126234dd)
+    e.g. 1.000003 / 3 -> 0.33333433333333329  (correctly rounded: 0.33333433333333334)
+[6] 1e-308 * 1e-5 = 0   (subnormal flushed to zero)
+    4.9e-324 (smallest subnormal) * 1e300 = 0
+[7] sqrt(-1) = -nan, errno = 0
+[8] dot() speed: 0.589 ns per element  (checksum -1.24829e+09)
+
+$ env OMP_NUM_THREADS=1 build/kerr_render_O3 --type double --res 192 --disk --out build/fm_O3_double.bin
+type=double method=rk4 spin=0.9375 incl=60 res=192  time=3.094 s  (11914 rays/s, 175.6 ns/step)
+captured=666 escaped=18383 disk=17815 maxsteps=0 notfinite=0  mean steps=478.0  flux=8.0813024942e+00
+
+$ env OMP_NUM_THREADS=1 build/kerr_render_O3 --type float --res 192 --disk --out build/fm_O3_float.bin
+type=float method=rk4 spin=0.9375 incl=60 res=192  time=2.972 s  (12402 rays/s, 168.7 ns/step)
+captured=666 escaped=18383 disk=17815 maxsteps=0 notfinite=0  mean steps=478.0  flux=8.0813019326e+00
+
+$ env OMP_NUM_THREADS=1 build/kerr_render_fast --type double --res 192 --disk --out build/fm_fast_double.bin
+type=double method=rk4 spin=0.9375 incl=60 res=192  time=3.052 s  (12080 rays/s, 173.2 ns/step)
+captured=666 escaped=18383 disk=17815 maxsteps=0 notfinite=0  mean steps=478.0  flux=8.0813024942e+00
+
+$ env OMP_NUM_THREADS=1 build/kerr_render_fast --type float --res 192 --disk --out build/fm_fast_float.bin
+type=float method=rk4 spin=0.9375 incl=60 res=192  time=2.940 s  (12540 rays/s, 166.8 ns/step)
+captured=666 escaped=18383 disk=17815 maxsteps=0 notfinite=0  mean steps=478.0  flux=8.0813027737e+00
+
+$ python3 scripts/compare.py kimg build/fm_O3_double.bin build/fm_fast_double.bin -O3 -O3 -ffast-math
+-O3 vs -O3 -ffast-math: 36864 pixels, status differs 0, intensity bitwise differs 14833 (40.2%), final theta differs 23713, max rel. intensity diff 2.357e-13, flux 8.0813024942104779 vs 8.0813024942104761
+
+$ python3 scripts/compare.py kimg build/fm_O3_float.bin build/fm_fast_float.bin -O3 -O3 -ffast-math
+-O3 vs -O3 -ffast-math: 36864 pixels, status differs 0, intensity bitwise differs 15951 (43.3%), final theta differs 28093, max rel. intensity diff 1.266e-04, flux 8.0813019326174782 vs 8.0813027737177237
+

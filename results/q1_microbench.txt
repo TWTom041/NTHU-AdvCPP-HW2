@@ -1,0 +1,32 @@
+$ build/q1_base
+ns per operation (lower is better).  Build: g++ -O2 (x86-64 baseline)
+type          size |  latency (dependent chain)              |  throughput (independent, arrays)      
+                   |     add     mul     div    sqrt     sin |     add     mul     div    sqrt     sin |
+float16_t      2 B |   13.27   13.19   14.03   14.91   20.85 |  18.575  19.253  22.195  17.480  29.837
+float          4 B |    0.71    1.64    4.21    4.48   10.02 |   0.136   0.106   0.264   1.071   3.870
+double         8 B |    0.72    1.45    5.21    4.74   11.50 |   0.202   0.260   0.712   2.157   6.024
+long double   16 B |    1.07    1.43    5.72    5.12   34.67 |   3.642   3.692   3.374   3.357 169.683
+__float128    16 B |   18.16   22.37   28.33  135.51  379.30 |  13.163  15.283  16.256 415.364 625.473
+
+$ build/q1_native
+ns per operation (lower is better).  Build: g++ -O3 -march=native
+type          size |  latency (dependent chain)              |  throughput (independent, arrays)      
+                   |     add     mul     div    sqrt     sin |     add     mul     div    sqrt     sin |
+float16_t      2 B |    1.49    1.51    5.23    5.35   13.78 |   0.035   0.032   0.357   1.593  21.625
+float          4 B |    0.70    1.56    3.96    4.45    9.58 |   0.057   0.061   0.219   1.063   3.642
+double         8 B |    0.72    1.42    5.33    4.76   12.38 |   0.116   0.123   0.727   2.119   6.198
+long double   16 B |    1.07    1.46    5.74    5.29   34.50 |   3.578   3.445   3.563   3.623 165.801
+__float128    16 B |   17.23   21.83   28.26  130.22  366.20 |  12.642  15.802  16.180 403.432 625.221
+
+$ bash -c objdump -d --no-show-raw-insn build/q1_base | grep -m3 -E 'vaddsh|__addhf3|call.*hf' ;                    objdump -d --no-show-raw-insn build/q1_native | grep -m3 -E 'vaddsh|vaddph';                    objdump -d --no-show-raw-insn build/q1_base | grep -m3 -E 'fadd|faddp';                    objdump -d --no-show-raw-insn build/q1_base | grep -m3 -E 'call.*__addtf3|call.*__multf3'
+    16e7:	call   1310 <__extendhfsf2@plt>
+    1707:	call   1310 <__extendhfsf2@plt>
+    1711:	call   1230 <__truncsfhf2@plt>
+    1698:	vaddsh %xmm0,%xmm1,%xmm0
+    2e3f:	vaddph 0x0(%r13,%rax,1),%ymm5,%ymm0
+    25a0:	fadd   %st,%st(1)
+    3f97:	faddp  %st,%st(1)
+    27c9:	call   12c0 <__addtf3@plt>
+    29c9:	call   1210 <__multf3@plt>
+    29d4:	call   1210 <__multf3@plt>
+

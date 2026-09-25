@@ -1,0 +1,8 @@
+$ ./scripts/run_raptor_full.sh
+RAPTOR -Ofast: wall 69.050969016 s, Integrated flux density = 3.27365e+00
+RAPTOR -O3: wall 72.235748409 s, Integrated flux density = 3.27365e+00
+
+$ python3 scripts/compare.py raptor build/raptor_O3/output/img_data_0_1.000000e+11_60.00.dat build/raptor_Ofast/output/img_data_0_1.000000e+11_60.00.dat
+RAPTOR image 500x500: total flux 3.273652e+00 Jy vs 3.273652e+00 Jy
+  pixels differing in the printed 6 significant digits: 30 of 250000 (0.01%), max rel. diff 3.699e-02, median rel. diff of differing pixels 1.069e-04
+

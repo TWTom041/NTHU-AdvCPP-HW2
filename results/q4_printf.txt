@@ -1,0 +1,44 @@
+$ build/q4_printf
+--- 1. the binary value, not the decimal literal, is rounded ---
+1.0000000005     %.9f=1.000000001      naive=1.000000001         iostream:same  exact=1.0000000005000000413701854995451867580414
+2.0000000005     %.9f=2.000000001      naive=2.000000001         iostream:same  exact=2.0000000005000000413701854995451867580414
+0.1234567895     %.9f=0.123456789      naive=0.123456790    DIFF iostream:same  exact=0.1234567894999999970728765674721216782928
+1.0000000015     %.9f=1.000000001      naive=1.000000002    DIFF iostream:same  exact=1.0000000014999999020659515736042521893978
+--- 2. exact ties are rounded half-to-even (IEEE default), not half-up ---
+1/1024           %.9f=0.000976562      naive=0.000976563    DIFF iostream:same  exact=0.0009765625000000000000000000000000000000
+5/1024           %.9f=0.004882812      naive=0.004882813    DIFF iostream:same  exact=0.0048828125000000000000000000000000000000
+3/1024           %.9f=0.002929688      naive=0.002929688         iostream:same  exact=0.0029296875000000000000000000000000000000
+    %.0f: 0.5 -> 0   1.5 -> 2   2.5 -> 2   3.5 -> 4
+--- 3. negative values that round to zero keep their sign ---
+-1e-10           %.9f=-0.000000000     naive=0.000000000    DIFF iostream:same  exact=-0.0000000001000000000000000036432197315498
+--- 4. float arguments are promoted to double and printed exactly ---
+0.1f             %.9f=0.100000001      naive=0.100000000    DIFF iostream:same  exact=0.1000000014901161193847656250000000000000
+16777217.0f      %.9f=16777216.000000000 naive=16777217.000000000 DIFF iostream:same  exact=16777216.0000000000000000000000000000000000000000
+--- 5. printf honours the dynamic rounding mode (fesetround) ---
+  FE_TONEAREST   0.1 -> 0.100000000   0.3 -> 0.300000000   -0.3 -> -0.300000000   (iostream 0.1 -> 0.100000000)
+  FE_UPWARD      0.1 -> 0.100000001   0.3 -> 0.300000000   -0.3 -> -0.299999999   (iostream 0.1 -> 0.100000001)
+  FE_DOWNWARD    0.1 -> 0.100000000   0.3 -> 0.299999999   -0.3 -> -0.300000000   (iostream 0.1 -> 0.100000000)
+  FE_TOWARDZERO  0.1 -> 0.100000000   0.3 -> 0.299999999   -0.3 -> -0.299999999   (iostream 0.1 -> 0.100000000)
+
+$ build/q4_printf_musl
+--- 1. the binary value, not the decimal literal, is rounded ---
+1.0000000005     %.9f=1.000000001      naive=1.000000001         iostream:(C build) exact=1.0000000005000000413701854995451867580414
+2.0000000005     %.9f=2.000000001      naive=2.000000001         iostream:(C build) exact=2.0000000005000000413701854995451867580414
+0.1234567895     %.9f=0.123456789      naive=0.123456790    DIFF iostream:(C build) exact=0.1234567894999999970728765674721216782928
+1.0000000015     %.9f=1.000000001      naive=1.000000002    DIFF iostream:(C build) exact=1.0000000014999999020659515736042521893978
+--- 2. exact ties are rounded half-to-even (IEEE default), not half-up ---
+1/1024           %.9f=0.000976562      naive=0.000976563    DIFF iostream:(C build) exact=0.0009765625000000000000000000000000000000
+5/1024           %.9f=0.004882812      naive=0.004882813    DIFF iostream:(C build) exact=0.0048828125000000000000000000000000000000
+3/1024           %.9f=0.002929688      naive=0.002929688         iostream:(C build) exact=0.0029296875000000000000000000000000000000
+    %.0f: 0.5 -> 0   1.5 -> 2   2.5 -> 2   3.5 -> 4
+--- 3. negative values that round to zero keep their sign ---
+-1e-10           %.9f=-0.000000000     naive=0.000000000    DIFF iostream:(C build) exact=-0.0000000001000000000000000036432197315498
+--- 4. float arguments are promoted to double and printed exactly ---
+0.1f             %.9f=0.100000001      naive=0.100000000    DIFF iostream:(C build) exact=0.1000000014901161193847656250000000000000
+16777217.0f      %.9f=16777216.000000000 naive=16777217.000000000 DIFF iostream:(C build) exact=16777216.0000000000000000000000000000000000000000
+--- 5. printf honours the dynamic rounding mode (fesetround) ---
+  FE_TONEAREST   0.1 -> 0.100000000   0.3 -> 0.300000000   -0.3 -> -0.300000000
+  FE_UPWARD      0.1 -> 0.100000001   0.3 -> 0.300000000   -0.3 -> -0.299999999
+  FE_DOWNWARD    0.1 -> 0.100000000   0.3 -> 0.299999999   -0.3 -> -0.300000000
+  FE_TOWARDZERO  0.1 -> 0.100000000   0.3 -> 0.299999999   -0.3 -> -0.299999999
+

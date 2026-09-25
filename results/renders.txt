@@ -1,0 +1,16 @@
+$ build/kerr_render --type double --res 512 --disk --out build/render_double.bin
+type=double method=rk4 spin=0.9375 incl=60 res=512  time=6.813 s  (38478 rays/s, 54.4 ns/step)
+captured=4708 escaped=130737 disk=126699 maxsteps=0 notfinite=0  mean steps=478.0  flux=5.7459670289e+01
+
+$ build/kerr_render --type float --res 512 --disk --out build/render_float.bin
+type=float method=rk4 spin=0.9375 incl=60 res=512  time=6.299 s  (41615 rays/s, 50.3 ns/step)
+captured=4708 escaped=130737 disk=126699 maxsteps=0 notfinite=0  mean steps=478.0  flux=5.7459657809e+01
+
+$ build/kerr_render --type double --res 512 --out build/render_shadow.bin
+type=double method=rk4 spin=0.9375 incl=60 res=512  time=8.860 s  (29587 rays/s, 52.9 ns/step)
+captured=12734 escaped=249410 disk=0 maxsteps=0 notfinite=0  mean steps=638.4  flux=0.0000000000e+00
+
+$ build/kerr_render --type double --res 512 --disk --spin 0 --out build/render_schw.bin
+type=double method=rk4 spin=0 incl=60 res=512  time=6.996 s  (37471 rays/s, 54.7 ns/step)
+captured=11402 escaped=137176 disk=113566 maxsteps=0 notfinite=0  mean steps=487.6  flux=1.2407595287e+01
+

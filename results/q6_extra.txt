@@ -1,0 +1,30 @@
+$ build/q6_extra
+A. Conditioning near the photon ring (a=0.9375, i=60, psi=0.3 rad, rho_c=6.562917601581)
+   rays at rho = rho_c (1 + delta) and rho (1 + 1e-13); angle between final directions
+   delta      steps      d(direction)   amplification 
+   1e-01      977        3.003e-10      3.003e+03      
+   1e-02      1278       1.393e-10      1.393e+03      
+   1e-03      1473       3.591e-10      3.591e+03      
+   1e-04      1636       1.108e-09      1.108e+04      
+   1e-05      1847       9.198e-09      9.198e+04      
+   1e-06      2146       7.109e-08      7.109e+05      
+   1e-07      2346       7.022e-07      7.022e+06      
+   1e-08      2507       8.095e-06      8.095e+07      
+   1e-09      2712       8.232e-05      8.232e+08      
+   1e-10      3014       7.363e-04      7.363e+09      
+
+B. Catastrophic cancellation in the camera set-up (float, i = 60 deg)
+   k_theta = sqrt(Q - L^2 cot^2 i + cos^2 i) with Q = beta^2 + cos^2 i (alpha^2 - 1), L = -alpha sin i
+   alpha    beta     RAPTOR formula   exact (=beta)    rel. error
+   0.5      3        3                3                0.00e+00
+   5        3        3.00000024       3                7.95e-08
+   20       3        3.00000262       3                8.74e-07
+   20       0.3      0.300019264      0.300000012      6.42e-05
+   20       0.03     0.0302571896     0.0299999993     8.57e-03
+   20       0.003    0.00478104409    0.00300000003    5.94e-01
+
+C. Subnormal operands (x *= 0.999999 in a dependent chain, 1e7 iterations)
+   start 1        (normal   ): 2.76 ns per multiply
+   start 1e-300   (normal   ): 3.10 ns per multiply
+   start 1e-310   (subnormal): 45.69 ns per multiply
+

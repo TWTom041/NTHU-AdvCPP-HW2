@@ -1,0 +1,22 @@
+$ build/kerr_precision --res 48 --reps 3
+Kerr ray tracing, a=0.9375 i=60, 48x48 rays with thin disk, RK4 STEPSIZE=0.03, single thread, best of 3
+reference = identical algorithm in __float128; errors are therefore pure round-off (RAPTOR k_theta formula)
+type          ns/step    ns/rhs   rays/s status |    dI med    dI max    d flux |   dir med   dir max |   max|2H|    max dQ
+                                           diff |     (rel)     (rel)     (rel) |     [rad]     [rad] |               (rel)
+float           199.7      49.9 10483.80      0 |  9.00e-07  7.08e-05  8.20e-08 |  1.34e-06  2.02e-05 |  1.70e-03  9.31e-05
+double          222.1      55.5  9423.18      0 |  1.79e-15  9.20e-14  0.00e+00 |  2.64e-15  4.34e-14 |  3.36e-05  8.65e-07
+long double    1508.4     376.9  1387.73      0 |  8.60e-19  4.34e-17  0.00e+00 |  1.25e-18  2.57e-17 |  3.36e-05  8.65e-07
+__float128    19704.7    4923.6   106.23      0 |  0.00e+00  0.00e+00  0.00e+00 |  0.00e+00  0.00e+00 |  3.36e-05  8.65e-07
+float16_t      2431.8     486.4 411211.07   2304 |  0.00e+00  0.00e+00  1.00e+00 |  0.00e+00  0.00e+00 |  0.00e+00  0.00e+00
+
+$ build/kerr_precision --res 48 --reps 3 --exact-ktheta
+Kerr ray tracing, a=0.9375 i=60, 48x48 rays with thin disk, RK4 STEPSIZE=0.03, single thread, best of 3
+reference = identical algorithm in __float128; errors are therefore pure round-off (k_theta = beta)
+type          ns/step    ns/rhs   rays/s status |    dI med    dI max    d flux |   dir med   dir max |   max|2H|    max dQ
+                                           diff |     (rel)     (rel)     (rel) |     [rad]     [rad] |               (rel)
+float           196.7      49.2 10641.50      0 |  9.03e-07  7.08e-05  1.96e-07 |  1.33e-06  2.02e-05 |  1.70e-03  9.31e-05
+double          218.3      54.5  9588.94      0 |  1.80e-15  9.20e-14  2.21e-16 |  2.64e-15  4.34e-14 |  3.36e-05  8.65e-07
+long double    1536.2     383.9  1362.64      0 |  8.61e-19  4.34e-17  0.00e+00 |  1.25e-18  2.57e-17 |  3.36e-05  8.65e-07
+__float128    19991.3    4995.2   104.71      0 |  0.00e+00  0.00e+00  0.00e+00 |  0.00e+00  0.00e+00 |  3.36e-05  8.65e-07
+float16_t      2510.8     502.2 398275.59   2304 |  0.00e+00  0.00e+00  1.00e+00 |  0.00e+00  0.00e+00 |  0.00e+00  0.00e+00
+

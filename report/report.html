@@ -1,0 +1,725 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<title>Advanced C++ Homework 2</title><style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body { font-family: "WenQuanYi Zen Hei", "DejaVu Sans", sans-serif; font-size: 10.2pt; line-height: 1.55;
+       color: #111; background: #fff; }
+h1 { font-size: 19pt; margin: 0 0 4pt; }
+h2 { font-size: 14.5pt; border-bottom: 1.5px solid #2a78d6; padding-bottom: 2pt; margin-top: 18pt;
+     break-after: avoid; }
+h3 { font-size: 11.5pt; margin-top: 12pt; break-after: avoid; color: #1d4f8f; }
+h4 { font-size: 10.5pt; margin-top: 10pt; break-after: avoid; }
+p, li { text-align: justify; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; background: #f2f1ee; padding: 0 2px;
+       border-radius: 2px; }
+pre { background: #f6f5f2; border: 1px solid #e4e3df; padding: 6pt 8pt; font-size: 8pt; line-height: 1.35;
+      overflow-x: hidden; white-space: pre-wrap; break-inside: avoid; }
+pre code { background: none; padding: 0; font-size: 8pt; }
+table { border-collapse: collapse; margin: 6pt 0; font-size: 8.8pt; break-inside: avoid; }
+th, td { border: 1px solid #d6d5d0; padding: 2pt 5pt; }
+th { background: #eef3fa; }
+img { max-width: 100%; display: block; margin: 6pt auto; break-inside: avoid; }
+img.shot { max-width: 100%; }
+.title { text-align: center; margin: 30pt 0 18pt; }
+.title .t1 { font-size: 20pt; font-weight: bold; }
+.title .t2 { font-size: 14pt; margin-top: 6pt; }
+.caption { text-align: center; font-size: 8.5pt; color: #52514e; margin-top: -2pt; margin-bottom: 8pt; }
+blockquote { border-left: 3px solid #2a78d6; margin: 6pt 0; padding: 2pt 10pt; color: #333; background: #f7f9fc; }
+.pagebreak { break-after: page; }
+</style></head><body><div class="title">
+<div class="t1">Advanced C++ Homework 2</div>
+<div class="t2">學號（請填寫）, 姓名（請填寫）</div>
+<div class="t2" style="font-size:11pt">Floating Point 行為專案報告 —— 以 Kerr 黑洞測地線模擬引擎為例</div>
+</div>
+<blockquote>
+<p><strong>報告情境。</strong> 我要為團隊寫一個「黑洞影像」的科學計算程式：在旋轉黑洞（Kerr 時空）附近追蹤數十萬條光線，算出望遠鏡看到的影像，並與天文界實際使用的 <a href="https://github.com/tbronzwaer/raptor">RAPTOR</a>（Bronzwaer et al. 2018, <em>A&amp;A</em> 613, A2；為事件視界望遠鏡 EHT 產生合成影像的 ray tracer 之一）比對。主管擔心「浮點數不安全」。本報告以這個真實問題為主軸：先說明我實作的引擎與驗證方式（第 1 章），再用它以及針對性的小實驗回答 Q0–Q7。<strong>所有程式碼、原始終端輸出與重現腳本都在 repository 中</strong>，每一個數據都可以在 <code>results/*.txt</code> 找到出處；截圖是這些輸出的畫面。</p>
+</blockquote>
+<p><strong>一句話結論：</strong> 浮點數不是「不安全」，而是<strong>有規格、可預測、但不是實數</strong>。只要知道誤差從哪裡來（捨入、抵銷、問題本身的病態性、編譯器/函式庫/硬體的差異），就能量化並控制它 —— 本報告的引擎用 <code>double</code> 就能把黑洞陰影邊界算到與解析解相差 10⁻¹²，而 <code>-ffast-math</code>、<code>float16</code>、跨平台差異等陷阱也都能用實驗重現並說明原因。</p>
+<div class="toc">
+<ul>
+<li><a href="#q0">Q0. 實驗環境</a></li>
+<li><a href="#1-kerr">1. 專案：Kerr 黑洞測地線模擬引擎</a><ul>
+<li><a href="#11">1.1 物理問題</a></li>
+<li><a href="#12-includekerrheader-only-c23">1.2 我的實作（include/kerr/，header-only C++23）</a></li>
+<li><a href="#13-srckerr_validatecpp">1.3 驗證一：與解析解比對（src/kerr_validate.cpp）</a></li>
+<li><a href="#14-raptor-srcraptor_comparecpp">1.4 驗證二：與 RAPTOR 逐條光線比對（src/raptor_compare.cpp）</a></li>
+<li><a href="#15-srcparallel_benchcpp">1.5 平行化技術比較（src/parallel_bench.cpp）</a></li>
+</ul>
+</li>
+<li><a href="#q1-benchmark">Q1. Benchmark：各種浮點型別的速度與精度</a><ul>
+<li><a href="#q11-ieee-754">Q1.1 型別與格式（IEEE 754）</a></li>
+<li><a href="#q12">Q1.2 浮點數的硬體實作</a></li>
+<li><a href="#q13-benchmark-1experimentsq1_microbenchcpp">Q1.3 Benchmark 1：基本運算（experiments/q1_microbench.cpp）</a></li>
+<li><a href="#q14-benchmark-2-kerr-srckerr_precisioncpp">Q1.4 Benchmark 2：真實工作量 —— 同一個 Kerr 光線追跡（src/kerr_precision.cpp）</a></li>
+<li><a href="#q15-float">Q1.5 記憶體與快取：float 真正的優勢在哪裡</a></li>
+<li><a href="#q16">Q1.6 小結：如何選型別</a></li>
+</ul>
+</li>
+<li><a href="#q2-library-implementationsinx">Q2. Library Implementation：sin(x)</a><ul>
+<li><a href="#q21">Q2.1 規格</a></li>
+<li><a href="#q22-glibc-239-sysdepsieee754dbl-64s_sinc-ibm-accurate-mathematical-library">Q2.2 glibc 2.39 的實作（sysdeps/ieee754/dbl-64/s_sin.c，源自 IBM Accurate Mathematical Library）</a></li>
+<li><a href="#q23-experimentsq2_sincpp-mpfr-320">Q2.3 實驗：精度與速度（experiments/q2_sin.cpp，以 MPFR 320 位元為正確值）</a></li>
+</ul>
+</li>
+<li><a href="#q3-ieee-754-ffast-math">Q3. IEEE 754 與 -ffast-math</a><ul>
+<li><a href="#q31">Q3.1 它做了什麼</a></li>
+<li><a href="#q32-ffast-math-experimentsq3_fastmathcpp">Q3.2 範例：只因為 -ffast-math 而改變的結果（experiments/q3_fastmath.cpp）</a></li>
+<li><a href="#q33-kerr-raptor">Q3.3 真實程式：Kerr 引擎與 RAPTOR</a></li>
+<li><a href="#q34">Q3.4 建議</a></li>
+</ul>
+</li>
+<li><a href="#q4-printf9f">Q4. 浮點數輸出：printf("%.9f") 是四捨五入嗎？</a></li>
+<li><a href="#q5-ub">Q5.（加分）相同程式碼、相同編譯器版本、相同參數、無 UB，結果卻不同</a><ul>
+<li><a href="#isa-fma-contraction">例一：硬體（ISA）不同 → FMA 自動融合（contraction）</a></li>
+<li><a href="#abi-long-double">例二：ABI 不同 → long double 是不同的型別</a></li>
+<li><a href="#c-libm">例三：作業系統 / C 函式庫不同 → libm 不同</a></li>
+<li><a href="#binary-glibc-cpu">例四：同一個 binary、同一個 glibc，只是 CPU 不同</a></li>
+<li><a href="#_1">例五：核心數不同 → 平行歸約的結果不同</a></li>
+</ul>
+</li>
+<li><a href="#q6">Q6. 總結</a><ul>
+<li><a href="#q61">Q6.1 我對浮點數運算的看法</a></li>
+<li><a href="#q62">Q6.2 額外細節：問題本身的「條件數」—— 再多位數也救不了病態問題</a></li>
+</ul>
+</li>
+<li><a href="#q7-ai">Q7. AI 使用自我揭露</a></li>
+</ul>
+</div>
+<div class="pagebreak"></div>
+
+<h2 id="q0">Q0. 實驗環境</h2>
+<p>所有實驗在同一台雲端 Linux 虛擬機上執行（Q5 另外使用 aarch64 交叉編譯 + QEMU 與 musl libc 模擬「不同環境」）。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>規格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>Intel Xeon Processor @ 2.10 GHz（family 6, <strong>model 207 = 0xCF, Emerald Rapids / Raptor Cove 核心</strong>，stepping 2），KVM 虛擬機 4 vCPU（1 thread/core）</td>
+</tr>
+<tr>
+<td>指令集</td>
+<td>SSE4.2, AVX2, <strong>FMA</strong>, <strong>AVX-512</strong> (F/DQ/BW/VL/IFMA/VBMI…), <strong>AVX512-FP16</strong>, AVX512-BF16, AMX</td>
+</tr>
+<tr>
+<td>快取</td>
+<td>L1d 48 KiB/核, L1i 32 KiB/核, L2 2 MiB/核, L3 260 MiB（共享）</td>
+</tr>
+<tr>
+<td>記憶體</td>
+<td>15 GiB</td>
+</tr>
+<tr>
+<td>OS / kernel</td>
+<td>Ubuntu 24.04.4 LTS, Linux 6.18.44（KVM guest）</td>
+</tr>
+<tr>
+<td>C 函式庫</td>
+<td><strong>glibc 2.39</strong>（Ubuntu 2.39-0ubuntu8.7）；Q5 另用 <strong>musl 1.2.4</strong></td>
+</tr>
+<tr>
+<td>編譯器</td>
+<td><strong>GCC 13.3.0</strong>（Ubuntu 13.3.0-6ubuntu2~24.04.1），<code>-std=gnu++23</code>；Q5 用同版本 <strong>aarch64-linux-gnu-gcc 13.3.0</strong></td>
+</tr>
+<tr>
+<td>其他</td>
+<td>QEMU user 8.2.2（執行 aarch64 binary）、Valgrind 3.22.0（Cachegrind）、MPFR 4.2.1（正確捨入參考值）、GSL 2.7.1（RAPTOR 需要）、oneTBB 2021.11（<code>std::execution::par</code> 後端）、Python 3.11 / NumPy 2.4 / Matplotlib 3.11、Node 22 + Playwright/Chromium（截圖與 PDF）</td>
+</tr>
+<tr>
+<td>RAPTOR</td>
+<td>github.com/tbronzwaer/raptor，固定 commit <code>08cb9a2</code>（2021-05-25），<strong>原始碼未修改</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>編譯參數</strong>：每個實驗的參數明列在 <code>Makefile</code>（因為有些實驗本身就在研究參數），預設為 <code>g++ -std=gnu++23 -O2</code>；benchmark 另外標示 <code>-O3 -march=native</code>、<code>-ffast-math</code> 等。</p>
+<p><strong>量測方法</strong>：<code>std::chrono::steady_clock</code>，每項量測重複 3 次取最小值；單執行緒量測時不跑其他工作。雲端 VM 的 turbo 頻率不可控，因此只比較<strong>相對</strong>數字；另外這台 VM <strong>沒有開放硬體效能計數器</strong>（<code>perf stat</code> 的 cache 事件回報 <code>&lt;not supported&gt;</code>），所以快取命中率用 Valgrind Cachegrind 模擬、再以實測的 working-set sweep 佐證。</p>
+<p><strong>重現</strong>：<code>make raptor &amp;&amp; make all cross &amp;&amp; ./scripts/run_all.sh</code>（約 30 分鐘），<code>results/</code> 內即為本報告所有數據；<code>python3 scripts/make_figures.py &amp;&amp; node scripts/screenshots.js &amp;&amp; python3 scripts/build_report.py</code> 產生圖、截圖與本 PDF。</p>
+<p><img alt="" class="shot" src="shots/q0_env.png" /></p>
+<div class="caption">圖 0：實驗環境（lscpu 節錄）</div>
+
+<div class="pagebreak"></div>
+
+<h2 id="1-kerr">1. 專案：Kerr 黑洞測地線模擬引擎</h2>
+<h3 id="11">1.1 物理問題</h3>
+<p>光在黑洞附近沿著<strong>零測地線 (null geodesic)</strong> 前進。從相機的每個像素往回追蹤一條光線：它可能掉進事件視界（黑色「陰影」）、打到吸積盤（發光）、或逃到無窮遠。旋轉黑洞由 Kerr 度規描述（單位 G = c = M = 1，自旋 a）。</p>
+<h3 id="12-includekerrheader-only-c23">1.2 我的實作（<code>include/kerr/</code>，header-only C++23）</h3>
+<table>
+<thead>
+<tr>
+<th>設計</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>座標</strong></td>
+<td>ingoing Kerr–Schild (t, r, θ, φ)：在事件視界上沒有座標奇異，光線可以平順穿越（Boyer–Lindquist 座標在視界處 g_rr → ∞）。</td>
+</tr>
+<tr>
+<td><strong>方程式</strong></td>
+<td><strong>Hamiltonian 形式</strong> H = ½ g<sup>ab</sup>(x) p<sub>a</sub>p<sub>b</sub> = 0，ẋ<sup>a</sup> = g<sup>ab</sup>p<sub>b</sub>，ṗ<sub>a</sub> = −∂H/∂x<sup>a</sup>。KS 的逆度規只依賴 (r, θ)，所以 <strong>p<sub>t</sub>（能量）與 p<sub>φ</sub>（角動量）在程式裡是逐位元守恆的</strong>；只剩 H 與 Carter 常數 Q 會漂移，拿來當精度診斷。RAPTOR 則是直接積分二階測地線方程，每步計算 64 個 Christoffel 符號。</td>
+</tr>
+<tr>
+<td><strong>型別</strong></td>
+<td>所有程式碼以 <code>template &lt;class T&gt;</code> 撰寫，可實例化為 <code>float</code>、<code>double</code>、<code>long double</code>、<code>__float128</code>、<code>std::float16_t</code>，甚至 <code>std::experimental::simd&lt;double&gt;</code>（一次推進 8 條光線）。數學函式透過 <code>kerr::m::sin</code> 等多載統一（<code>__float128</code> 對應 libquadmath 的 <code>sinq</code>…）。</td>
+</tr>
+<tr>
+<td><strong>積分器</strong></td>
+<td>RK2（RAPTOR 預設）、RK4、Dormand–Prince 5(4)（自適應步長、FSAL）。步長規則與 RAPTOR 的 <code>stepsize()</code> 相同：dλ = h / (|ṙ|/r + |θ̇|/min(θ, π−θ) + |φ̇|)。</td>
+</tr>
+<tr>
+<td><strong>相機</strong></td>
+<td>與 RAPTOR 的 <code>initialize_photon()</code> 相同：像素 → 撞擊參數 (α, β) → (E, L, Q)，在 r = 10⁴ M 由 Boyer–Lindquist 轉到 KS。</td>
+</tr>
+<tr>
+<td><strong>場景</strong></td>
+<td>幾何薄、光學厚的 Keplerian 吸積盤（r<sub>ISCO</sub> ~ 20 M），觀測強度 I = g⁴ · r⁻³(1 − √(r<sub>in</sub>/r))，g 為重力紅移 + 都卜勒因子。</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="" src="fig/render.png" /></p>
+<div class="caption">圖 1：左：本引擎產生的影像（a = 0.9375、傾角 60°、double、RK4）；中：被黑洞捕獲的光線（黑）與 Bardeen 解析陰影邊界（橘線）；右：每條光線的積分步數 —— 貼近光子環的光線要多繞好幾圈，成本是一般光線的 2–6 倍（這在第 1.5 節的平行化中很重要）。</div>
+
+<h3 id="13-srckerr_validatecpp">1.3 驗證一：與解析解比對（<code>src/kerr_validate.cpp</code>）</h3>
+<p>遠方觀測者看到的陰影邊界有解析解（Bardeen 1973 的 critical curve，由球面光子軌道給出）。我在 12 個方向上用二分法找「捕獲 ↔ 逃逸」的交界，和以 <code>__float128</code> 計算的解析曲線比對：</p>
+<p><img alt="" class="shot" src="shots/validate.png" /></p>
+<p><img alt="" src="fig/validate.png" style="max-width:80%" /></p>
+<div class="caption">圖 2：陰影邊界的最大相對誤差。RK4 的誤差隨步長 h 以 h⁴ 下降（3×10⁻⁹ → 3×10⁻¹¹ → 3×10⁻¹³，每次 h 縮小 3 倍、誤差縮小 ≈ 81 = 3⁴ 倍），證明方程式與積分器都正確；自適應 DP45 的極限則由型別決定：float ≈ 2×10⁻⁷（≈ 2 ε<sub>float</sub>）、double ≈ 10⁻¹²、long double ≈ 10⁻¹⁴、__float128 ≈ 10⁻¹⁵（這裡已經被「二分法輸入參數是 double」限制）。</div>
+
+<p><strong>這是整份報告最重要的一張圖</strong>：它說明「浮點數誤差」其實是可以<strong>量化</strong>的，而且在這個問題中，演算法的截斷誤差（步長）通常遠大於 double 的捨入誤差。</p>
+<h3 id="14-raptor-srcraptor_comparecpp">1.4 驗證二：與 RAPTOR 逐條光線比對（<code>src/raptor_compare.cpp</code>）</h3>
+<p><code>raptor_bridge/raptor_bridge.c</code> 把 RAPTOR 的 <code>.c</code> 檔（不修改）一起 <code>#include</code> 成單一 translation unit，直接呼叫它的 <code>initialize_photon()</code>、<code>stepsize()</code>、<code>rk4_step()</code>／<code>rk2_step()</code>（RAPTOR 把全域變數定義在 header 裡，GCC ≥ 10 預設 <code>-fno-common</code> 會連結失敗，單一 TU 可以繞過；完整的 RAPTOR 程式則用 <code>-fcommon</code> 編譯）。對 100×100 條光線（RAPTOR 範例設定：a = 0.9375、i = 60°、視野 40 M、STEPSIZE = 0.03）分別用 RAPTOR、本引擎（同一種積分器、同一個步長規則）與參考解（本引擎、long double、DP45、rtol 10⁻¹³）追蹤，再把逃逸光線推到同一半徑 r = 1.01×10⁴ 比較方向：</p>
+<p><img alt="" class="shot" src="shots/raptor_rk4.png" /></p>
+<table>
+<thead>
+<tr>
+<th>RK4, STEPSIZE 0.03</th>
+<th>RAPTOR</th>
+<th>本引擎</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始條件差異（與 RAPTOR）</td>
+<td>—</td>
+<td>2.9×10⁻¹⁴（只差捨入）</td>
+</tr>
+<tr>
+<td>捕獲光線數（參考解 486）</td>
+<td>486</td>
+<td>486</td>
+</tr>
+<tr>
+<td>每步時間（單執行緒）</td>
+<td>574 ns</td>
+<td><strong>211 ns</strong>（2.7× 快：Hamiltonian 形式不需 64 個 Christoffel 符號）</td>
+</tr>
+<tr>
+<td>能量 E 漂移 / 角動量 L 漂移</td>
+<td>9.3×10⁻⁶ / 2.3×10⁻⁵</td>
+<td><strong>0 / 4.5×10⁻¹⁵</strong>（結構上守恆）</td>
+</tr>
+<tr>
+<td>最終方向誤差（中位數 / p99）</td>
+<td>9.4×10⁻⁸ / 6.0×10⁻⁶ rad</td>
+<td><strong>8.5×10⁻⁹ / 2.5×10⁻⁸ rad</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>STEPSIZE 0.01 時兩者都以 h⁴ 收斂（誤差 ≈ 1/81），確認兩個程式解的是同一個問題。</li>
+<li><strong>RAPTOR 的預設積分器其實是 RK2</strong>（<code>parameters.h</code>：<code>int_method (RK2)</code>）。在同一步長下 RAPTOR RK2 捕獲 499 條光線（多了 13 條錯誤分類），方向誤差中位數 4×10⁻³ rad、最大 2.5 rad；本引擎的 RK2 為 2.6×10⁻⁴ / 1.2×10⁻²。<strong>換句話說，對這個問題而言誤差的主要來源是積分方法與步長，不是 double 的精度。</strong></li>
+<li>最大誤差都出現在陰影邊緣附近 —— 那些光線繞光子環好幾圈，是混沌的（見 Q6）。</li>
+</ul>
+<p><img alt="" class="shot" src="shots/raptor_rk2.png" /></p>
+<h3 id="15-srcparallel_benchcpp">1.5 平行化技術比較（<code>src/parallel_bench.cpp</code>）</h3>
+<p>同一張 256×256 影像（double、RK4、含吸積盤），以不同平行技術渲染，並檢查結果與序列版逐像素一致（mismatch 欄）。機器有 4 核。</p>
+<p><img alt="" class="shot" src="shots/parallel_double.png" /></p>
+<p><img alt="" src="fig/parallel.png" style="max-width:85%" /></p>
+<div class="caption">圖 3：相對於單執行緒 scalar 版本的加速（藍：double，橘：float）。虛線為 4 核的理想值。</div>
+
+<p>觀察與解釋：</p>
+<ol>
+<li><strong>負載不平衡決定了排程策略的好壞。</strong> 每條光線的步數從 219 到 1366 不等（圖 1 右），而且昂貴的光線集中在影像中央。把影像切成 4 個連續區塊（<code>std::thread static block</code>、<code>OpenMP schedule(static)</code>）時，拿到中央區塊的執行緒最慢，imbalance（最忙執行緒時間 / 平均）= 1.36，效率只有 72–73%。<code>schedule(guided)</code> 一開始就分大塊，同樣吃虧（72%）。</li>
+<li><strong>交錯分配（cyclic rows、<code>schedule(static,1)</code>）或動態排程（atomic 工作計數器、<code>schedule(dynamic,16)</code>、TBB work stealing 的 <code>std::for_each(std::execution::par, …)</code>）都能達到 94–100% 效率（量測雜訊使少數數字略超過 100%）</strong>：前者把昂貴區域平均分給每個執行緒，後者讓先做完的執行緒去拿新工作。</li>
+<li><strong>SIMD 是另一個維度</strong>：<code>std::experimental::simd&lt;double&gt;</code>（AVX-512，8 lanes）把 8 條相鄰光線綁在一起、以遮罩 (mask) 凍結已結束的 lane。單執行緒就有 <strong>4.6×</strong>（lane 使用率 97%：相鄰像素的步數很接近），再加上 OpenMP 4 核達到 <strong>18.6×</strong>，而且結果與 scalar 版本的差異只有 5×10⁻¹⁴（向量版 <code>sin</code>/<code>cos</code> 與 glibc 的捨入不同）。</li>
+<li><strong>float vs double（Q1 的伏筆）</strong>：scalar 程式中 float 並沒有比較快（這個 <code>-march=native</code> build 中 float 甚至慢 27%，見 Q1.4）；但在 SIMD 版本中 float 一個暫存器可以放 16 個 lane：float SIMD 單執行緒是 scalar float 的 <strong>15×</strong>、是 double SIMD 的 2.6×，加上 4 核達到 <strong>60×</strong>，捕獲/逃逸分類完全相同，強度差異 1.7×10⁻⁴（float 的精度）。</li>
+<li><strong>False sharing</strong>：4 個執行緒各自遞增「自己的」計數器，但計數器相鄰擺放、落在同一條 64-byte cache line 上：每次寫入都要搶這條 line 的所有權（MESI 協定），<strong>慢了 10 倍</strong>（72 ns vs 7.2 ns 一次遞增）；以 <code>alignas(64)</code> 讓每個計數器獨佔一條 line 就解決了。</li>
+</ol>
+<div class="pagebreak"></div>
+
+<h2 id="q1-benchmark">Q1. Benchmark：各種浮點型別的速度與精度</h2>
+<h3 id="q11-ieee-754">Q1.1 型別與格式（IEEE 754）</h3>
+<p>一個二進位浮點數 = (−1)<sup>s</sup> × 1.f × 2<sup>e−bias</sup>。「精度」由尾數位數 p 決定（machine epsilon ε = 2<sup>1−p</sup>），「範圍」由指數位數決定。</p>
+<table>
+<thead>
+<tr>
+<th>C++ 型別（x86-64 Linux）</th>
+<th>格式</th>
+<th>位元（符號/指數/尾數）</th>
+<th>p</th>
+<th>ε</th>
+<th>最大值</th>
+<th>十進位有效位數</th>
+<th>硬體</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>std::float16_t</code> / <code>_Float16</code></td>
+<td>binary16</td>
+<td>1/5/10</td>
+<td>11</td>
+<td>9.8×10⁻⁴</td>
+<td>65504</td>
+<td>~3</td>
+<td>AVX512-FP16（本機有）；否則只有轉換指令 F16C</td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td>binary32</td>
+<td>1/8/23</td>
+<td>24</td>
+<td>1.2×10⁻⁷</td>
+<td>3.4×10³⁸</td>
+<td>~7</td>
+<td>SSE/AVX</td>
+</tr>
+<tr>
+<td><code>double</code></td>
+<td>binary64</td>
+<td>1/11/52</td>
+<td>53</td>
+<td>2.2×10⁻¹⁶</td>
+<td>1.8×10³⁰⁸</td>
+<td>~16</td>
+<td>SSE2/AVX</td>
+</tr>
+<tr>
+<td><code>long double</code></td>
+<td>x87 80-bit extended</td>
+<td>1/15/64（顯式整數位）</td>
+<td>64</td>
+<td>1.1×10⁻¹⁹</td>
+<td>1.2×10⁴⁹³²</td>
+<td>~19</td>
+<td>x87 FPU（佔 16 bytes）</td>
+</tr>
+<tr>
+<td><code>__float128</code></td>
+<td>binary128</td>
+<td>1/15/112</td>
+<td>113</td>
+<td>1.9×10⁻³⁴</td>
+<td>1.2×10⁴⁹³²</td>
+<td>~34</td>
+<td><strong>無硬體</strong>，libgcc 軟體模擬</td>
+</tr>
+</tbody>
+</table>
+<p>（注意：<code>long double</code> 的格式由 ABI 決定 —— x86-64 Linux 是 80-bit、aarch64 Linux 是 binary128、MSVC 是 64-bit，這在 Q5 會成為「結果不同」的原因。）</p>
+<h3 id="q12">Q1.2 浮點數的硬體實作</h3>
+<p><strong>(1) 資料路徑。</strong> 現代 x86-64 的 <code>float</code>/<code>double</code> 運算在 SSE/AVX 暫存器（xmm/ymm/zmm）上進行：scalar 指令（<code>addss</code>/<code>addsd</code>）只用最低的 lane，packed 指令（<code>vaddps</code>/<code>vaddpd</code>）一次處理整個暫存器 —— 512-bit 暫存器可放 <strong>16 個 float 或 8 個 double</strong>。本機的 Raptor Cove 核心有兩個 FMA 單元（port 0/5）及兩個「快速加法器」（port 1/5）：加法延遲約 2 cycles、乘法/FMA 約 4 cycles，<strong>float 與 double 的延遲相同</strong>，因為同一組電路以相同級數的 pipeline 處理兩種寬度。</p>
+<p><strong>(2) 捨入。</strong> 加法器先對齊指數、相加得到比 p 位更多的結果，再依 guard / round / sticky 三個額外位元以及 MXCSR 暫存器中的 rounding mode（預設 round-to-nearest-even）捨入回 p 位，並在 MXCSR 設定 sticky 的例外旗標（inexact、underflow、overflow、invalid、divide-by-zero）。<strong>IEEE 754 要求 + − × ÷ √ 與 FMA 都是「正確捨入」</strong>：結果等於把精確值捨入一次 —— 所以基本運算是完全可預測、可重現的。FMA（a×b+c 只捨入一次）是最重要的新增運算。</p>
+<p><strong>(3) 除法與開根號</strong> 使用獨立的迭代式單元（radix-16 SRT/digit recurrence），延遲比乘法長很多且只能部分 pipeline；float 需要的位數少，所以<strong>除法/開根號是 float 比 double 快的少數 scalar 運算</strong>（見下表 div：4.2 vs 5.2 ns）。</p>
+<p><strong>(4) Subnormal（非正規數）</strong> 在很多微架構上需要 microcode assist，一次運算可能慢數十倍（Q6 實測慢 17 倍）；<code>-ffast-math</code> 的 FTZ/DAZ 就是為了避開它（Q3）。</p>
+<p><strong>(5) x87 與 <code>long double</code>。</strong> x87 是 1980 年的 8087 協處理器架構：8 個 80-bit 暫存器組成<strong>堆疊</strong>，沒有 SIMD，每次載入/存回 80-bit 值都需要 <code>fld</code>/<code>fstp</code> tbyte（較慢），超越函數（<code>fsin</code>）是 microcode。GCC 對 <code>long double</code> 產生 <code>fadd</code>/<code>faddp</code> 等 x87 指令（見截圖）。</p>
+<p><strong>(6) <code>__float128</code>：沒有硬體。</strong> x86 沒有 binary128 運算單元，GCC 把每個 <code>+</code>、<code>×</code> 編譯成對 libgcc 的函式呼叫（<code>__addtf3</code>、<code>__multf3</code>…），在函式裡用 64-bit 整數運算拆解指數與尾數、處理捨入 —— 這就是 soft-float。</p>
+<p><strong>(7) <code>float16</code>。</strong> 在基本指令集（x86-64-v1）下沒有 half 運算，GCC 為每個運算呼叫 <code>__extendhfsf2</code>（轉 float）→ float 運算 → <code>__truncsfhf2</code>（轉回 half）；本機支援 <strong>AVX512-FP16</strong>，用 <code>-march=native</code> 時 GCC 直接產生 <code>vaddsh</code>/<code>vaddph</code>。</p>
+<p><img alt="" class="shot" src="shots/q1_asm.png" /></p>
+<div class="caption">圖 4：反組譯證據（上到下）：float16 在 -O2 呼叫轉換函式、在 -march=native 使用 AVX512-FP16 指令；long double 使用 x87 `fadd`；__float128 呼叫 libgcc 的 `__addtf3`/`__multf3`。</div>
+
+<h3 id="q13-benchmark-1experimentsq1_microbenchcpp">Q1.3 Benchmark 1：基本運算（<code>experiments/q1_microbench.cpp</code>）</h3>
+<ul>
+<li><strong>latency</strong>：一條相依鏈 <code>x = x op c</code>，下一個運算必須等上一個結束 —— 量到的是<strong>單一運算的延遲</strong>（ODE 積分這類有資料相依的程式看到的就是它）。</li>
+<li><strong>throughput</strong>：<code>c[i] = a[i] op b[i]</code>，2048 元素陣列（在 L1 內），運算彼此獨立，編譯器可自動向量化 —— 量到的是<strong>最佳情況下每個元素的成本</strong>。</li>
+<li>各編譯兩次：<code>-O2</code>（x86-64 基本指令集，SSE2，128-bit 向量）與 <code>-O3 -march=native</code>（AVX-512）。</li>
+</ul>
+<p><img alt="" class="shot" src="shots/q1_micro.png" /></p>
+<p><img alt="" src="fig/q1_micro.png" /></p>
+<div class="caption">圖 5：ns/operation（對數座標，越低越好）。</div>
+
+<p><strong>解釋：</strong></p>
+<ol>
+<li><strong>scalar 的 float 與 double 延遲幾乎一樣</strong>（add 0.71 vs 0.72 ns、mul 1.6 vs 1.5 ns）：同一組硬體（上一節 (1)）。只有 div/sqrt 因迭代位數不同，float 稍快。</li>
+<li><strong>向量化時 float 是 double 的 2 倍</strong>：<code>-O2</code> 的 add 0.136 vs 0.202 ns、<code>-march=native</code> 0.057 vs 0.116 ns —— 一個暫存器裝的 float 數量是 double 的兩倍；sqrt 在兩種 build 都是 1.07 vs 2.16 ns。<strong>float 的速度優勢來自 SIMD 寬度與記憶體頻寬（Q1.5），不是單一運算比較快。</strong></li>
+<li><strong><code>long double</code></strong>：加乘延遲接近 double（x87 本身不慢），但無法向量化（throughput 3.6 ns，比 double 慢 30 倍），而且 <code>sinl</code> 的實作較貴（35 ns，見 Q2）。</li>
+<li><strong><code>__float128</code></strong>：每個運算都是函式呼叫 + 整數模擬，加法 18 ns、除法 28 ns、<strong>sqrt 135 ns、sin 379 ns</strong>（比 double 慢 25–60 倍）。</li>
+<li><strong><code>float16_t</code></strong>：在 -O2 每個運算 13 ns（兩次轉換函式呼叫！），比 double 慢 20 倍；開 <code>-march=native</code> 後有硬體支援，向量加法 0.035 ns/元素（<strong>一個 zmm 放 32 個 half</strong>），是所有型別中最快的 —— 但精度只有 3 位數（下一節）。</li>
+</ol>
+<h3 id="q14-benchmark-2-kerr-srckerr_precisioncpp">Q1.4 Benchmark 2：真實工作量 —— 同一個 Kerr 光線追跡（<code>src/kerr_precision.cpp</code>）</h3>
+<p>48×48 條光線（含吸積盤，RK4），單執行緒。<strong>參考解是同一個演算法用 <code>__float128</code> 執行</strong>，所以誤差欄位是<strong>純捨入誤差</strong>（截斷誤差相同而抵銷）。</p>
+<p><img alt="" class="shot" src="shots/q1_kerr.png" /></p>
+<table>
+<thead>
+<tr>
+<th>型別</th>
+<th>ns/step</th>
+<th>相對 double</th>
+<th>影像強度誤差（中位數 / 最大）</th>
+<th>光線方向誤差（中位數）</th>
+<th>評語</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>float</td>
+<td>200</td>
+<td>0.90× 時間</td>
+<td>9.0×10⁻⁷ / 7.1×10⁻⁵</td>
+<td>1.3×10⁻⁶ rad</td>
+<td>scalar 程式幾乎不快；誤差 ~ ε<sub>float</sub> × 放大</td>
+</tr>
+<tr>
+<td>double</td>
+<td>222</td>
+<td>1</td>
+<td>1.8×10⁻¹⁵ / 9.2×10⁻¹⁴</td>
+<td>2.6×10⁻¹⁵ rad</td>
+<td>捨入誤差遠小於截斷誤差（~10⁻⁸）</td>
+</tr>
+<tr>
+<td>long double</td>
+<td>1508</td>
+<td>6.8× 慢</td>
+<td>8.6×10⁻¹⁹</td>
+<td>1.3×10⁻¹⁸ rad</td>
+<td>x87，無 SIMD；<code>sinl</code>/<code>cosl</code> 慢</td>
+</tr>
+<tr>
+<td>__float128</td>
+<td>19705</td>
+<td>89× 慢</td>
+<td>0（參考解）</td>
+<td>0</td>
+<td>軟體模擬</td>
+</tr>
+<tr>
+<td>float16_t</td>
+<td>—</td>
+<td>—</td>
+<td>全部 2304 條光線失敗</td>
+<td>—</td>
+<td><strong>溢位</strong>：相機設定中 (r²+a²)² ≈ 10¹⁶ ≫ 65504 → ∞ → NaN</td>
+</tr>
+</tbody>
+</table>
+<p>解釋：</p>
+<ul>
+<li><strong>為什麼 float 在這裡沒有變快？</strong> 光線追跡是 scalar、相依鏈很長（每一步依賴上一步）、每次 RHS 呼叫 <code>sin</code>/<code>cos</code> 的程式；如 Q1.3 所示，scalar float 與 double 的延遲相同，<code>sinf</code> 只比 <code>sin</code> 快一點。記憶體用量極小（見 Q1.5 的 Cachegrind），也沒有頻寬優勢。唯有像第 1.5 節那樣<strong>把資料排成 SIMD</strong>，float 才有 2 倍的空間。</li>
+<li><strong>編譯器也會讓 float 變慢</strong>：用 <code>-march=native</code> 編譯時，GCC 的 SLP 自動向量化把 8 個元素的 RK4 狀態陣列打包成向量，產生的 shuffle 反而拖慢程式：float 從 223 變成 276 ns/step（double 225 → 225）；加上 <code>-fno-tree-vectorize</code> 後 float 220、double 179 ns/step。「float 比 double 快」並不是硬體的保證，而是取決於資料排列與編譯器。</li>
+<li><strong>H 漂移</strong>（max|2H|）：double、long double、<code>__float128</code> 都是 3.4×10⁻⁵ —— 這是 RK4 的截斷誤差，和型別無關；float 為 1.7×10⁻³，捨入誤差已經超過截斷誤差。<strong>這告訴我們 double 對這個問題是「精度剛好過剩」：加更多位數（long double、quad）完全沒有幫助，卻付出 7–90 倍的時間。</strong></li>
+<li><strong>float16 的失敗是「範圍」問題不是「精度」問題</strong>：中間值 (r²+a²)² 在 r = 10⁴（甚至 r = 100）時就超過 65504。選擇型別時除了有效位數，還要檢查中間運算的動態範圍。</li>
+</ul>
+<h3 id="q15-float">Q1.5 記憶體與快取：float 真正的優勢在哪裡</h3>
+<p><strong>(a) Working-set sweep（實機量測，<code>experiments/cache_sweep.cpp</code>）</strong>：對大小 4 KiB–1 GiB 的陣列做加總（float vs double），以及隨機指標追逐（測 load-to-use 延遲）。</p>
+<p><img alt="" src="fig/cache.png" /></p>
+<div class="caption">圖 6：左：每 ns 加總的元素數；右：相依載入延遲。虛線為 L1d/L2/L3 容量。</div>
+
+<ul>
+<li>指標追逐清楚顯示階層：<strong>L1 ≈ 2 ns、L2 ≈ 6–9 ns、L3 ≈ 33–46 ns（2–8 MiB）</strong>；超過 ~16 MiB 後延遲逐步升到 <strong>150–215 ns</strong>（VM 實際可用的 L3 份額與 4 KiB 分頁的 TLB miss 都會貢獻）。</li>
+<li>資料在 L1/L2 內時，加總受限於運算，float（16 lanes）每 ns 處理約 <strong>1.5–1.9 倍</strong>於 double 的元素；超出快取後受限於記憶體頻寬（兩者都約 13 GB/s），float 因為<strong>只搬一半的位元組</strong>而處理 <strong>2 倍</strong>的元素（3.3 vs 1.7 Gelem/s）。</li>
+</ul>
+<p><strong>(b) Cache 命中率（Valgrind Cachegrind 模擬，<code>experiments/cache_patterns.cpp</code>）</strong>：沿列 (row-major, stride 1) 與沿行 (column-major, stride N) 加總 2048×2048 矩陣，以及光線追跡程式本身。</p>
+<p><img alt="" class="shot" src="shots/cachegrind.png" /></p>
+<ul>
+<li>沿列走訪時，每條 64-byte cache line 含 16 個 float／8 個 double，<strong>D1 讀取 miss rate 5.8% 與 11.4%（≈ 1/16 與 1/8）</strong>（float 命中率較高，這就是「float 省頻寬」的微觀原因）；沿行走訪每次都碰新的一條 line，D1 讀取 miss rate <strong>89%</strong>，實測（4096×4096）慢 9–10 倍。</li>
+<li><strong>光線追跡程式的 D1 miss rate 接近 0</strong>：每條光線的狀態只有 8 個數、幾十個暫存值，全部在暫存器與 L1 中 —— 這是一個 <strong>compute-bound</strong> 程式，這也解釋了為何 Q1.4 中 float 沒有頻寬優勢。</li>
+</ul>
+<h3 id="q16">Q1.6 小結：如何選型別</h3>
+<ol>
+<li><strong>預設用 <code>double</code></strong>：scalar 速度與 float 相同，精度多 9 位數，範圍 10³⁰⁸ 幾乎不會溢位。</li>
+<li><strong><code>float</code> 只在「可向量化或受記憶體頻寬限制」且誤差預算 ≥ 10⁻⁶ 時才划算</strong>（影像、圖學、ML、大陣列）。</li>
+<li><strong><code>long double</code>/<code>__float128</code> 用來驗證</strong>（例如本報告的參考解），不要當作主要型別：慢 7–90 倍，而且 <code>long double</code> 在不同平台是不同格式。</li>
+<li><strong><code>float16</code>/<code>bfloat16</code> 只適合儲存或容錯的 ML 計算</strong>：3 位有效數字、最大值 65504。</li>
+<li>比「換更長的型別」更有效的通常是<strong>換更好的演算法</strong>（RK4 vs RK2、守恆形式的方程式、避免抵銷的公式）。</li>
+</ol>
+<div class="pagebreak"></div>
+
+<h2 id="q2-library-implementationsinx">Q2. Library Implementation：<code>sin(x)</code></h2>
+<h3 id="q21">Q2.1 規格</h3>
+<ul>
+<li><strong>C++</strong>：<code>&lt;cmath&gt;</code> 的 <code>std::sin</code> 規格引用 C 標準 7.12.4.6：「sin 函數計算 x（以弧度為單位）的正弦」。C++ 提供 <code>float sin(float)</code>、<code>double sin(double)</code>、<code>long double sin(long double)</code>（以及 <code>sinf</code>、<code>sinl</code>），整數引數當作 <code>double</code>；C++23 增加 extended floating-point 型別（<code>std::float16_t</code> 等）的多載，C++26 起為 <code>constexpr</code>（P1383）。</li>
+<li><strong>精度</strong>：C 標準 5.2.4.2.2 說 <code>&lt;math.h&gt;</code> 函數的精度是 <strong>implementation-defined</strong> —— 標準<strong>不要求</strong>正確捨入，也不要求不同實作結果相同。IEEE 754-2019 §9.2 只「建議 (should)」sin 正確捨入。</li>
+<li><strong>特殊值</strong>（C Annex F.10.1.6，glibc 遵守）：<code>sin(±0) = ±0</code>（保留符號）；<code>sin(±∞)</code> 回傳 NaN 並觸發 <strong>FE_INVALID</strong>，若 <code>math_errhandling &amp; MATH_ERRNO</code> 則 <code>errno = EDOM</code>；<code>sin(NaN) = NaN</code>；很小的非正規數回傳 x 本身並觸發 underflow。</li>
+</ul>
+<p><img alt="" class="shot" src="shots/q2_special.png" /></p>
+<h3 id="q22-glibc-239-sysdepsieee754dbl-64s_sinc-ibm-accurate-mathematical-library">Q2.2 glibc 2.39 的實作（<code>sysdeps/ieee754/dbl-64/s_sin.c</code>，源自 IBM Accurate Mathematical Library）</h3>
+<p>x86-64 的 glibc <strong>不使用 x87 的 <code>fsin</code> 指令</strong>，完全以 SSE2 的 double 運算實作。依 |x| 的高 32 位元分成 5 個區間：</p>
+<table>
+<thead>
+<tr>
+<th>區間</th>
+<th>做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>|x| &lt; 2⁻²⁶</td>
+<td>直接回傳 x（sin x = x − x³/6，x³/6 小於半個 ulp）</td>
+</tr>
+<tr>
+<td>2⁻²⁶ ≤ |x| &lt; 0.855469</td>
+<td><code>do_sin(x, 0)</code>：若 |x| &lt; 0.126 用 Taylor 多項式；否則<strong>查表</strong>：把 x 拆成 x = x<sub>i</sub> + dx，x<sub>i</sub> 是 1/128 的倍數（技巧：<code>u.x = big + |x|</code>，big = 1.5·2⁴⁵，加法的捨入自動把 x 四捨五入到 2⁻⁷ 的倍數，低位元就是表格索引）。表 <code>__sincostab</code> 有 440 個 double，存 sin(x<sub>i</sub>)、cos(x<sub>i</sub>) 以及它們的「尾數修正項」(double-double)。再用 sin(x<sub>i</sub>+dx) = sin x<sub>i</sub> cos dx + cos x<sub>i</sub> sin dx，dx 很小，sin dx、cos dx 只要 3 項多項式。</td>
+</tr>
+<tr>
+<td>0.855469 ≤ |x| &lt; 2.426265</td>
+<td>用 sin x = cos(π/2 − x)：π/2 以兩個 double（hp0 + hp1，共 106 位元）表示，t = hp0 − |x| 精確，再呼叫 <code>do_cos(t, hp1)</code></td>
+</tr>
+<tr>
+<td>2.426265 ≤ |x| &lt; 105414350</td>
+<td><strong>Cody–Waite 範圍縮減</strong> <code>reduce_sincos</code>：n = round(x · 2/π)（技巧：加上 toint = 1.5·2⁵² 讓 FPU 幫忙取整）；y = x − n·(π/2)，其中 π/2 拆成 4 段（mp1、mp2、pp3、pp4），前幾段只有 20–30 個有效位元，使 n·mp1 在 n &lt; 2²⁷ 時<strong>精確</strong>（無捨入），總共約 136 位元的 π/2，得到 double-double 的 (a, da)；再依 n mod 4 選 ±sin/±cos</td>
+</tr>
+<tr>
+<td>|x| ≥ 105414350</td>
+<td><strong><code>__branred</code>（Payne–Hanek 式）</strong>：x 可能大到 10³⁰⁸，x·(2/π) 需要 2/π 的第 1000 多位才能得到正確的小數部分。表 <code>toverp</code> 存 2/π 的二進位展開（每段 24 位元），只取和 x 的指數對齊的那幾段相乘累加，得到 x mod π/2</td>
+</tr>
+<tr>
+<td>Inf / NaN</td>
+<td>回傳 x/x（產生 NaN 與 FE_INVALID），Inf 時設 errno = EDOM</td>
+</tr>
+</tbody>
+</table>
+<p>其他實作細節：</p>
+<ul>
+<li><strong>捨入模式</strong>：函式開頭 <code>SET_RESTORE_ROUND_53BIT(FE_TONEAREST)</code> —— 若呼叫者用 <code>fesetround</code> 改了捨入模式，函式內暫時切回 round-to-nearest，演算法的誤差分析才成立。</li>
+<li><strong>錯誤界</strong>：原始碼註解標示各區間 max ULP 0.501–0.548（「~0.55 ULP」）—— <strong>不是正確捨入</strong>（正確捨入 ≤ 0.5 ULP）。</li>
+<li><strong>硬體 dispatch（IFUNC）</strong>：<code>sysdeps/x86_64/fpu/multiarch/s_sin.c</code> 把同一份原始碼編兩次：<code>__sin_sse2</code> 與以 <code>-mfma -mavx2</code> 編譯的 <code>__sin_fma</code>，執行期由 IFUNC resolver 依 CPU 選一個。以 <code>experiments/q2_ifunc.c</code> 印出 <code>sin</code> 解析後的位址並反組譯：本機預設選到含 36 個 <code>vfmadd*</code> 指令的版本；用 <code>GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA</code> 遮掉 FMA 後選到另一個位址、0 個 FMA 指令的版本（Q5 會看到這讓結果不同）。</li>
+</ul>
+<p><img alt="" class="shot" src="shots/q2_ifunc.png" /></p>
+<h3 id="q23-experimentsq2_sincpp-mpfr-320">Q2.3 實驗：精度與速度（<code>experiments/q2_sin.cpp</code>，以 MPFR 320 位元為正確值）</h3>
+<p>我另外寫了 60 行的 <code>mini_sin</code>（fdlibm 1993 的演算法：3 段 33 位元的 π/2 做 Cody–Waite + 6 次 minimax 多項式），以及直接呼叫 x87 <code>fsin</code> 指令，與 glibc 比較。每個區間 20 萬個隨機輸入：</p>
+<p><img alt="" class="shot" src="shots/q2_sin.png" /></p>
+<ol>
+<li><strong>glibc <code>sin</code> 在所有區間最大誤差 ≤ 0.515 ULP，99.9% 正確捨入</strong>，包括 x 到 10³⁰⁰ —— 這要歸功於 136 位元的 π/2 與 Payne–Hanek。</li>
+<li><strong>x87 <code>fsin</code> 在 x = π 誤差 1.6×10¹¹ ULP</strong>：Intel 的 <code>fsin</code> 內部只用 66 位元的 π，x 接近 π 的倍數時 x − kπ 的抵銷把 π 的誤差放大 —— 這是 glibc 從 2.28 起完全不使用它的原因（Intel 在 2014 年修正了手冊中的精度宣稱）。</li>
+<li><strong><code>mini_sin</code> 在 |x| &lt; π/4 附近誤差約 1 ULP</strong>（沒有查表與 double-double 修正），且 <strong>|x| 超過約 1.6×10⁶ 後完全錯誤</strong>（1.1×10¹² ULP；x = 10²² 時誤差 3.6×10⁸⁷ ULP）：33 位元一段的 π/2 只保證 n &lt; 2²⁰ 時 n·(π/2 片段) 精確。這說明<strong>範圍縮減才是 sin 最困難的部分</strong>，也說明為什麼 glibc 需要 5 個區間。</li>
+<li><strong>速度</strong>：glibc <code>sin</code> 在 |x| &lt; 2.43 約 6.4 ns，Cody–Waite 區間 23 ns，Payne–Hanek 區間 71 ns（前兩者用了 IFUNC 選出的 FMA 版本）；x87 <code>fsin</code> 26–48 ns 且不準；<code>sinl</code>（long double）17–179 ns。</li>
+<li><code>sinf</code> 的最大誤差 0.56 ULP、<code>sinq</code>（libquadmath）1.21 ULP、<code>sinl</code> 1.40 ULP —— 同一個函數在不同型別的實作精度也不同。</li>
+</ol>
+<div class="pagebreak"></div>
+
+<h2 id="q3-ieee-754-ffast-math">Q3. IEEE 754 與 <code>-ffast-math</code></h2>
+<h3 id="q31">Q3.1 它做了什麼</h3>
+<p><code>-ffast-math</code> 告訴 GCC：「<strong>我不在乎 IEEE 754 的語意，請把浮點數當實數最佳化</strong>」。它等同於開啟下列選項，並定義巨集 <code>__FAST_MATH__</code>：</p>
+<table>
+<thead>
+<tr>
+<th>選項</th>
+<th>允許編譯器做的事</th>
+<th>破壞了什麼</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-fno-math-errno</code></td>
+<td><code>sqrt</code> 等不設定 errno → 可以直接用 <code>sqrtsd</code> 指令、可向量化 libm 呼叫</td>
+<td>errno 錯誤回報</td>
+</tr>
+<tr>
+<td><code>-funsafe-math-optimizations</code> = <code>-fassociative-math</code> + <code>-freciprocal-math</code> + <code>-fno-signed-zeros</code> + <code>-fno-trapping-math</code></td>
+<td>(a+b)+c → a+(b+c)（可向量化歸約）；x/y → x·(1/y)；x+0.0 → x；假設不會有 trap</td>
+<td>結合律/捨入順序、正確捨入的除法、−0 的符號</td>
+</tr>
+<tr>
+<td><code>-ffinite-math-only</code></td>
+<td>假設沒有 NaN 與 ±Inf</td>
+<td><code>isnan()</code>/<code>isinf()</code> 可被直接判定為 false</td>
+</tr>
+<tr>
+<td><code>-fno-rounding-math</code>, <code>-fno-signaling-nans</code></td>
+<td>假設預設捨入模式、無 signaling NaN</td>
+<td>（本來就是 GCC 預設）</td>
+</tr>
+<tr>
+<td><code>-fcx-limited-range</code></td>
+<td>複數除法不做縮放與 NaN 修正</td>
+<td>複數除法的溢位與 Inf 處理</td>
+</tr>
+<tr>
+<td><code>-fexcess-precision=fast</code></td>
+<td>允許中間結果保留在較寬的暫存器</td>
+<td>在 x87/float16 上結果可能依暫存器分配而變</td>
+</tr>
+<tr>
+<td>連結 <code>crtfastmath.o</code></td>
+<td><strong>程式啟動時設定 MXCSR 的 FTZ（flush-to-zero）與 DAZ（denormals-are-zero）</strong></td>
+<td>非正規數全部變成 0 —— <strong>影響整個行程</strong>，包括沒用 <code>-ffast-math</code> 編譯的函式庫</td>
+</tr>
+</tbody>
+</table>
+<p>（<code>-Ofast</code> = <code>-O3 -ffast-math</code> + 其他；<strong>RAPTOR 的 makefile 就是用 <code>-Ofast</code></strong>。）</p>
+<h3 id="q32-ffast-math-experimentsq3_fastmathcpp">Q3.2 範例：只因為 <code>-ffast-math</code> 而改變的結果（<code>experiments/q3_fastmath.cpp</code>）</h3>
+<p>同一份原始碼以 <code>g++ -O3</code> 與 <code>g++ -O3 -ffast-math</code> 各編譯一次；所有輸入來自 <code>volatile</code>，避免常數摺疊：</p>
+<p><img alt="" class="shot" src="shots/q3_strict.png" />
+<img alt="" class="shot" src="shots/q3_fast.png" /></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>實驗</th>
+<th><code>-O3</code></th>
+<th><code>-O3 -ffast-math</code></th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>陣列中有 0.0/0.0 產生的 NaN，<code>std::isnan</code> 檢查</td>
+<td>true</td>
+<td><strong>false</strong></td>
+<td><code>-ffinite-math-only</code>：isnan 被最佳化成常數 false —— <strong>錯誤檢查整段消失</strong></td>
+</tr>
+<tr>
+<td>1b</td>
+<td><code>std::isinf(1e308 * 10)</code></td>
+<td>true</td>
+<td><strong>false</strong></td>
+<td>同上</td>
+</tr>
+<tr>
+<td>2</td>
+<td>10⁷ 個 0.1f 加總：naive / <strong>Kahan</strong></td>
+<td>1087937 / <strong>1000000</strong></td>
+<td>975599 / <strong>975599</strong></td>
+<td><code>-fassociative-math</code> 認為 Kahan 的補償項 c = (t − s) − y 代數上恆為 0，把它刪掉，<strong>Kahan 退化成普通加總</strong>；naive 加總也因為向量化改變順序而得到不同的錯誤結果</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2²⁰ 項不同數量級的內積</td>
+<td>…8898535</td>
+<td>…8382154</td>
+<td>歸約被重新結合成 SIMD 的部分和，捨入順序不同</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>1/(-0.0 + 0.0)</code></td>
+<td>+inf</td>
+<td><strong>−inf</strong></td>
+<td><code>-fno-signed-zeros</code>：x + 0.0 → x，但 −0 + +0 在 IEEE 是 +0</td>
+</tr>
+<tr>
+<td>5</td>
+<td>10⁶ 個 x/3</td>
+<td>0 個與正確捨入不同</td>
+<td><strong>333328 個不同</strong></td>
+<td><code>-freciprocal-math</code>：x/3 → x·(1/3)，兩次捨入，約 1/3 的結果差 1 ulp</td>
+</tr>
+<tr>
+<td>6</td>
+<td>1e-308 × 1e-5（應為非正規數 1e-313）</td>
+<td>1e-313</td>
+<td><strong>0</strong></td>
+<td><code>crtfastmath.o</code> 設了 FTZ/DAZ（MXCSR 0x1f80 → 0x9fc0）</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>sqrt(-1)</code> 的 errno</td>
+<td>EDOM</td>
+<td><strong>0</strong></td>
+<td><code>-fno-math-errno</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>內積速度</td>
+<td>0.83 ns/元素</td>
+<td>0.59 ns/元素</td>
+<td>允許向量化歸約（1.4× 快）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>最典型的單一例子</strong>是 #2：Kahan summation 是教科書上「修正浮點誤差」的演算法，而 <code>-ffast-math</code> 會<strong>默默把它最佳化掉</strong> —— 因為在實數的世界裡它什麼都沒做。#1 則是最危險的：程式中防呆的 NaN 檢查會消失，錯誤在下游才以奇怪的形式出現。</p>
+<h3 id="q33-kerr-raptor">Q3.3 真實程式：Kerr 引擎與 RAPTOR</h3>
+<p><img alt="" class="shot" src="shots/q3_kerr.png" /></p>
+<ul>
+<li><strong>本引擎</strong>（192×192，含吸積盤）：double 版本有 <strong>40% 的像素逐位元改變</strong>（最大相對差 2.4×10⁻¹³，總通量在第 16 位不同）；float 版本 43% 的像素改變（最大相對 1.3×10⁻⁴、總通量差 10⁻⁷）；捕獲/逃逸分類都沒有改變。速度差異 &lt; 2% —— 這個程式的瓶頸是相依鏈與 <code>sin</code>/<code>cos</code>，<code>-ffast-math</code> 幾乎沒有好處，卻讓結果不可重現。</li>
+<li><strong>RAPTOR 預設的 <code>-Ofast</code></strong> vs 符合 IEEE 的 <code>-O3</code>（完整 GRMHD 影像 500×500，dump040，100 GHz）：總通量印出的 7 位數相同，但有 30 個像素在輸出的 6 位有效數字上不同，<strong>最大相對差異 3.7%</strong>（都在少數貼近光子環或低強度的像素）；執行時間 69 s vs 72 s，只快 4%。以光線層級比較（<code>raptor_compare_ofast</code>），<code>-Ofast</code> 下 RAPTOR 的測地線統計數字與 <code>-O2</code> 完全相同。</li>
+</ul>
+<p><img alt="" src="fig/raptor.png" style="max-width:80%" /></p>
+<div class="caption">圖 7：左：RAPTOR 產生的 GRMHD 影像（-O3）；右：-Ofast 改變的像素位置與相對大小。</div>
+
+<p><img alt="" src="fig/fastmath.png" style="max-width:50%" /></p>
+<div class="caption">圖 8：本引擎 float 版本在 -ffast-math 下改變的像素（相對差異，對數色階）。</div>
+
+<h3 id="q34">Q3.4 建議</h3>
+<ul>
+<li><strong>不要對整個專案開 <code>-ffast-math</code></strong>；它會關掉 NaN 檢查、破壞補償演算法，並透過 FTZ/DAZ 影響同一行程中的其他程式碼。</li>
+<li>需要速度時<strong>只開真正需要的子選項</strong>：<code>-fno-math-errno</code>（幾乎總是安全，讓 <code>sqrt</code> 內聯）、<code>-fno-trapping-math</code>；需要向量化歸約時自己寫多個部分和（如 <code>experiments/cache_sweep.cpp</code>），而不是讓編譯器重新結合。</li>
+<li>如果一定要用，對關鍵函式以 <code>__attribute__((optimize("no-fast-math")))</code> 或把它放到獨立的編譯單元。</li>
+</ul>
+<div class="pagebreak"></div>
+
+<h2 id="q4-printf9f">Q4. 浮點數輸出：<code>printf("%.9f")</code> 是四捨五入嗎？</h2>
+<p><strong>結論：這個敘述不精確。</strong> <code>printf("%.9f", x)</code> 與 <code>std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(9) &lt;&lt; x</code>（libstdc++ 的 <code>num_put</code> 依 C++ 標準 [facet.num.put.virtuals] 以 printf 轉換規則實作）做的是：<strong>把 x 所代表的「精確二進位值」依「目前的捨入模式」捨入到小數第 9 位</strong>。C 標準 7.23.6.1 只說 "the value is rounded"，Annex F（IEC 60559）要求二進位→十進位轉換依目前捨入方向正確捨入；glibc 與 musl 都是精確實作。和「把我寫的十進位數字四捨五入」有四個差異：</p>
+<ol>
+<li><strong>被捨入的是二進位值，不是你寫的十進位字面值。</strong> <code>0.1234567895</code> 存成 0.12345678949999999707…，所以印出 <code>0.123456789</code>（四捨五入預期 …790）；<code>1.0000000015</code> 存成 1.00000000149999990…，印出 <code>1.000000001</code>（預期 …002）。反過來 <code>1.0000000005</code> 剛好存成比 …5 大一點的值，所以結果「看起來」對 —— 對不對取決於運氣。</li>
+<li><strong>剛好在中間（tie）時是「四捨六入五成雙」(round-half-to-even)，不是四捨五入。</strong> 1/1024 = 0.0009765625 <strong>可以被 double 精確表示</strong>，是真正的 tie：<code>%.9f</code> 印出 <code>0.000976562</code>（2 是偶數，捨去），四捨五入應為 <code>0.000976563</code>；5/1024 = 0.0048828125 → <code>0.004882812</code>。同理 <code>%.0f</code> 對 0.5、1.5、2.5、3.5 印出 0、2、2、4。</li>
+<li><strong>結果依動態捨入模式 (<code>fesetround</code>) 改變。</strong> 同一個 0.1，在 <code>FE_UPWARD</code> 下印出 <code>0.100000001</code>；0.3 在 <code>FE_DOWNWARD</code>/<code>FE_TOWARDZERO</code> 下印出 <code>0.299999999</code>；−0.3 在 <code>FE_UPWARD</code> 下印出 <code>-0.299999999</code>。iostream 也一樣。</li>
+<li><strong>負數捨入到 0 時保留負號</strong>：−1e-10 印出 <code>-0.000000000</code>，而不是 <code>0.000000000</code>。</li>
+</ol>
+<p>另外 <code>float</code> 會先被提升為 double 再印出它的精確值：<code>0.1f</code> 印出 <code>0.100000001</code>（0.1f = 0.100000001490116…），而 <code>16777217.0f</code> 根本無法表示，印出 <code>16777216.000000000</code>。</p>
+<p><img alt="" class="shot" src="shots/q4_glibc.png" /></p>
+<div class="caption">圖 9：glibc 的輸出（每列最後為以 %.40f 印出的精確二進位值；iostream 欄「same」表示與 printf 相同）。musl 1.2.4 的結果完全相同（results/q4_printf.txt）。</div>
+
+<p><strong>若真的需要「十進位四捨五入」</strong>（例如金額），應使用十進位型別或整數（以「分」為單位），或先用 <code>std::to_chars</code> 取得最短可回讀的十進位字串再以十進位規則捨入 —— 而不是依賴 <code>printf</code>。</p>
+<div class="pagebreak"></div>
+
+<h2 id="q5-ub">Q5.（加分）相同程式碼、相同編譯器版本、相同參數、無 UB，結果卻不同</h2>
+<p><code>experiments/q5_env.c</code> 用<strong>同一份原始碼、同為 GCC 13.3.0、同樣只加 <code>-O2</code></strong> 編出三個版本：x86-64 + glibc 2.39、x86-64 + musl 1.2.4（<code>musl-gcc</code> 只是包裝同一個 gcc）、aarch64 + glibc 2.39（<code>aarch64-linux-gnu-gcc</code>，以 QEMU 執行）。程式沒有未定義行為，所有 libm 的輸入以 <code>volatile</code> 強制捨入，保證三個平台餵給函式庫的位元完全相同。</p>
+<p><img alt="" class="shot" src="shots/q5_platforms.png" /></p>
+<h3 id="isa-fma-contraction">例一：硬體（ISA）不同 → FMA 自動融合（contraction）</h3>
+<p><code>double mul_sub(a,b,c) { return a*b - c; }</code>，<code>0.1*10 - 1</code>：x86-64 印出 <strong>0</strong>、aarch64 印出 <strong>5.55×10⁻¹⁷</strong>。原因：GCC 在 GNU 模式預設 <code>-ffp-contract=fast</code>，<strong>只要目標指令集有 FMA 就把 a*b−c 融合成一條 FMA</strong>（只捨入一次）。aarch64 的基本指令集就有 FMA（反組譯為 <code>fnmsub d0,d0,d1,d2</code>），x86-64 的基本指令集（SSE2）沒有，所以是 <code>mulsd</code> + <code>subsd</code>（兩次捨入：0.1×10 先捨入成剛好 1.0）。C/C++ 標準允許這種 contraction（C 6.5p8、<code>FP_CONTRACT</code>），所以不是 UB。後果不只最後一位：二次方程式重根的判別式 b²−4ac 在 x86-64 為 0（一個重根），在 aarch64 為 8.9×10⁻¹⁸，開根號得到 3×10⁻⁹ —— <strong>重根變成兩個不同的根</strong>。</p>
+<p>同樣的原因，<strong>我的 Kerr 引擎</strong>在 aarch64 上（同樣 <code>-O2</code>）有 4054/9216 = 44% 的像素與 x86-64 逐位元不同（最大相對差 5.5×10⁻¹⁴，分類結果相同）。</p>
+<h3 id="abi-long-double">例二：ABI 不同 → <code>long double</code> 是不同的型別</h3>
+<p><code>(1.0L + 1e-17L) - 1.0L</code>：x86-64 為 9.97×10⁻¹⁸（80-bit，64 位尾數）、aarch64 為 1×10⁻¹⁷（binary128，113 位尾數）；十個 0.1L 相加與 1.0L 的差：1.08×10⁻¹⁹ vs −9.6×10⁻³⁵。（MSVC 上 <code>long double</code> 就是 double，又會是第三種答案。）</p>
+<h3 id="c-libm">例三：作業系統 / C 函式庫不同 → libm 不同</h3>
+<p>C 標準不要求 <code>sin</code>、<code>exp</code> 正確捨入（Q2），各家實作的演算法不同。同樣是 x86-64、相同輸入，glibc 與 musl 的結果：</p>
+<p><img alt="" class="shot" src="shots/q5_diffs.png" /></p>
+<p>musl 的 <code>sin</code>/<code>cos</code>/<code>tan</code> 源自 fdlibm，約 3% 的結果與 glibc 差 1 ulp；<code>atan2</code> 18%、<code>cbrt</code> 50%（最大 3 ulp）。有趣的是 musl 的 <code>exp</code>/<code>log</code>/<code>pow</code> 與 glibc 的差異，和 glibc「FMA 版 vs 非 FMA 版」的差異<strong>完全相同</strong>（611/1/726 個）—— 兩者用的是同一份演算法（ARM optimized-routines），差別只在有沒有 FMA。aarch64 的 glibc 與 x86-64 的 glibc（FMA 版）在 <code>sin</code>/<code>exp</code>/<code>pow</code> 等完全一致，但 <code>cbrt</code>（19%，最大 4 ulp）與 <code>lgamma</code>（23%）不同 —— 這兩個函數在 x86-64 沒有 FMA 變體（遮掉 FMA 時 <code>cbrt</code> 0 個不同），推測是 aarch64 的 libm 在編譯時被自動 FMA 融合（例一的機制），而 x86-64 基本版是分開的乘、加。</p>
+<h3 id="binary-glibc-cpu">例四：<strong>同一個 binary、同一個 glibc，只是 CPU 不同</strong></h3>
+<p>glibc 在執行期依 CPU 功能以 IFUNC 選擇 <code>sin</code>/<code>cos</code>/<code>exp</code>/<code>log</code>/<code>pow</code>/<code>atan2</code>… 的 FMA 版本（Q2.2）。在同一台機器上用 <code>GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA</code> 模擬「沒有 FMA 的舊 CPU」：<code>sin</code> 有 686 個、<code>exp</code> 611、<code>pow</code> 726 個（約 0.07%）結果不同（1–2 ulp）。也就是說：<strong>同一個執行檔，在 Haswell 之前與之後的 Intel CPU 上會算出不同的 <code>sin</code></strong>。</p>
+<h3 id="_1">例五：核心數不同 → 平行歸約的結果不同</h3>
+<p><code>#pragma omp parallel for reduction(+:s)</code> 的預設執行緒數 = CPU 核心數，每個執行緒加總自己的區段後再合併，捨入順序取決於執行緒數：</p>
+<p><img alt="" class="shot" src="shots/q5_threads.png" /></p>
+<p>1、2、3、4 個執行緒得到 4 個不同的總和（差異 ~10⁻⁷，相對 10⁻¹³）。程式完全合法，但在 8 核和 64 核的機器上輸出不同。更進一步：4 執行緒的結果在兩次執行間也不同（本報告開發時一次得到 …164913、<code>run_all.sh</code> 中得到 …164908）—— libgomp 以執行緒<strong>完成的先後順序</strong>合併部分和，所以連同一台機器都不保證可重現。</p>
+<p><strong>如何得到可重現的結果</strong>：<code>-ffp-contract=off</code>（或只在需要時使用 <code>std::fma</code>）、不用 <code>long double</code>、使用正確捨入的數學函式庫（如 CORE-MATH）或自帶實作、固定歸約順序（固定分塊數而非依執行緒數分塊，或用 Kahan/exact accumulator）、在測試中以誤差容忍度而不是逐位元相等比較結果。</p>
+<div class="pagebreak"></div>
+
+<h2 id="q6">Q6. 總結</h2>
+<h3 id="q61">Q6.1 我對浮點數運算的看法</h3>
+<p>浮點數不是「不安全」，而是一個<strong>規格嚴謹的近似系統</strong>：IEEE 754 保證基本運算正確捨入，所以單一運算的誤差 ≤ ½ ulp，完全可預測。問題出在我們把它當成實數：</p>
+<ol>
+<li><strong>誤差會累積與放大</strong>：抵銷（相近數相減）、長鏈加總、病態問題都會放大捨入誤差 —— 需要分析或實驗量化，而不是祈禱。</li>
+<li><strong>「同樣的程式」不保證同樣的位元</strong>：編譯器（contraction、<code>-ffast-math</code>、向量化）、函式庫（libm 精度是 implementation-defined）、硬體（FMA dispatch、<code>long double</code> 格式）、平行化（歸約順序）都會改變結果（Q3、Q5）。</li>
+<li><strong>通常截斷誤差比捨入誤差大</strong>：本引擎中 RK4 的截斷誤差 ~10⁻⁸–10⁻⁹，double 的捨入誤差 ~10⁻¹⁵；RAPTOR 預設 RK2 的誤差甚至到 10⁻³。<strong>先確保演算法收斂，再談型別。</strong></li>
+<li><strong>驗證手段</strong>：與解析解比較（陰影邊界）、收斂階數檢查（h⁴）、守恆量監控（E、L、Q、H）、以更高精度重跑（<code>__float128</code> 參考解）、與獨立實作（RAPTOR）交叉比對。</li>
+</ol>
+<p><strong>實務準則</strong>：預設 <code>double</code>；float 只在可向量化/受頻寬限制時使用；不用 <code>==</code> 比較浮點數（用相對+絕對容忍度）；不全域開 <code>-ffast-math</code>；小心 NaN/Inf 的傳播並在邊界檢查；輸出十進位時知道 printf 在做什麼；需要可重現時固定 contraction、libm 與歸約順序。</p>
+<h3 id="q62">Q6.2 額外細節：問題本身的「條件數」—— 再多位數也救不了病態問題</h3>
+<p>前面的題目都在談「計算」的誤差，但有一種誤差來源與浮點數格式無關：<strong>問題本身對輸入的敏感度（condition number）</strong>。黑洞陰影邊緣附近的光線會繞光子環好幾圈才離開，光子軌道是<strong>不穩定</strong>的：每繞半圈，擾動被放大 e<sup>γ</sup> 倍（γ 為 Lyapunov 指數）。<code>experiments/q6_extra.cpp</code> 讓兩條光線的撞擊參數只差 10⁻¹³（相對），量最終方向的差：</p>
+<p><img alt="" class="shot" src="shots/q6.png" /></p>
+<p><img alt="" src="fig/chaos.png" style="max-width:60%" /></p>
+<div class="caption">圖 10：誤差放大倍率 ∝ 1/δ（δ = 與陰影邊緣的相對距離）。δ = 10⁻¹⁰ 時放大 7×10⁹ 倍。</div>
+
+<p>在 δ = 10⁻¹⁰ 時，輸入 1 ulp 等級的差異（10⁻¹⁶）會變成 10⁻⁶ rad 的方向差；δ 再小，double 的捨入誤差就足以讓「捕獲或逃逸」的結論翻轉。<strong>這不是 bug，也不能靠換 <code>long double</code> 解決</strong>（只能把牆往後推幾位數），而是物理問題本身的性質 —— 這也解釋了第 1.4 節中 RAPTOR 與本引擎的最大誤差為什麼都集中在陰影邊緣。正確的做法是：辨識病態區域、在那裡以統計量（例如像素平均通量）而非單一光線來下結論。</p>
+<p>同一個程式中另外兩個小陷阱（同樣在 <code>results/q6_extra.txt</code>）：</p>
+<ul>
+<li><strong>代數等價 ≠ 數值等價（catastrophic cancellation）</strong>：RAPTOR 設定光線時計算 k<sub>θ</sub> = √(Q − L² cot² i + cos² i)，代入後代數上恆等於 β，但當 |α| ≫ |β| 時是大數相減：float 下 α = 20、β = 0.003 時算出 0.00478，<strong>相對誤差 59%</strong>。直接寫 k<sub>θ</sub> = β 就沒有這個問題（引擎提供 <code>exact_ktheta</code> 選項）。</li>
+<li><strong>非正規數很慢</strong>：相依乘法鏈中運算元為非正規數時，每次乘法 45.7 ns，正常值 2.8 ns，<strong>慢 17 倍</strong>（microcode assist）—— 這也是 <code>-ffast-math</code> 設定 FTZ/DAZ 的動機，但代價是 Q3 的 #6。</li>
+</ul>
+<div class="pagebreak"></div>
+
+<h2 id="q7-ai">Q7. AI 使用自我揭露</h2>
+<blockquote>
+<p><strong>（請依實際情況修改本段。）</strong></p>
+</blockquote>
+<p>本作業使用 Anthropic 的 AI 程式助理 Claude（Claude Code）協助。</p>
+<ul>
+<li><strong>AI 完成的部分</strong>：依我的指示（「寫一個 Kerr 度規測地線模擬引擎並與 RAPTOR 比較、加入平行化技術與快取命中率的比較」）撰寫了引擎程式碼、RAPTOR 橋接與比對程式、所有實驗程式、執行腳本、圖表、截圖工具與本報告初稿；並查閱了 glibc 2.39 的 <code>s_sin.c</code> 原始碼作為 Q2 的依據。</li>
+<li><strong>我自己做的部分</strong>：（請填寫，例如：決定報告主題與實驗方向、閱讀並理解每一個實驗與程式碼、在自己的電腦上重跑 <code>run_all.sh</code> 核對數據、修改與補充說明、最終審閱。）</li>
+<li>所有數據都來自實際執行的輸出（<code>results/*.txt</code>），截圖是把這些終端輸出以終端機樣式渲染成圖片（<code>scripts/screenshots.js</code>）。</li>
+</ul></body></html>

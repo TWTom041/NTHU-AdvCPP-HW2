@@ -143,15 +143,22 @@ void trace_packet(const Scene<T>& sc, int first, int count, Image& img, PacketSt
 struct Result {
     std::string name;
     double sec, imbalance;
-    long mismatches;
+    long mismatches;  // pixels whose status (captured / escaped / disk) differs from the serial render
+    double max_rel;   // largest relative intensity difference among disk pixels
     std::string note;
 };
 
-template <class T> long compare(const Image& a, const Image& b) {
-    long bad = 0;
-    for (size_t i = 0; i < a.status.size(); ++i)
-        if (a.status[i] != b.status[i] || std::fabs(a.intensity[i] - b.intensity[i]) > 1e-6 * (1e-12 + std::fabs(a.intensity[i]))) ++bad;
-    return bad;
+struct Diff {
+    long status;
+    double max_rel;
+};
+Diff compare(const Image& a, const Image& b) {
+    Diff d{0, 0.0};
+    for (size_t i = 0; i < a.status.size(); ++i) {
+        if (a.status[i] != b.status[i]) { ++d.status; continue; }
+        if (a.intensity[i] > 0) d.max_rel = std::max(d.max_rel, std::fabs(a.intensity[i] - b.intensity[i]) / a.intensity[i]);
+    }
+    return d;
 }
 
 template <class T> void run(int res, int nthreads, int reps) {
@@ -176,7 +183,8 @@ template <class T> void run(int res, int nthreads, int reps) {
         Image img(res, res);
         Busy busy(nthreads);
         auto [s, imb] = time_it(name, body, img, busy);
-        results.push_back({name, s, imb, compare<T>(ref, img), note});
+        const Diff d = compare(ref, img);
+        results.push_back({name, s, imb, d.status, d.max_rel, note});
         std::fprintf(stderr, "  %-34s %.3f s\n", name.c_str(), s);
     };
     auto pixel = [&](Image& img, int i) { trace_pixel(sc.st, sc.cam, sc.cfg, i % res, i / res, img); };
@@ -185,7 +193,7 @@ template <class T> void run(int res, int nthreads, int reps) {
     {
         Busy busy(1);
         auto [s, imb] = time_it("serial", [&](Image& img, Busy&) { for (int i = 0; i < n; ++i) pixel(img, i); }, ref, busy);
-        results.push_back({"serial", s, 1.0, 0, ""});
+        results.push_back({"serial", s, 1.0, 0, 0.0, ""});
     }
 
     // 2. std::thread, contiguous blocks of rows
@@ -285,12 +293,12 @@ template <class T> void run(int res, int nthreads, int reps) {
     const double serial = results[0].sec;
     std::printf("\n%s, %dx%d rays, %d threads (hardware_concurrency=%u), best of %d\n", type_name<T>(), res, res,
                 nthreads, std::thread::hardware_concurrency(), reps);
-    std::printf("%-34s %9s %8s %10s %10s %8s  %s\n", "technique", "time [s]", "speedup", "efficiency", "imbalance",
-                "mismatch", "note");
+    std::printf("%-34s %9s %8s %10s %10s %8s %10s  %s\n", "technique", "time [s]", "speedup", "efficiency", "imbalance",
+                "status!=", "max rel dI", "note");
     for (const auto& r : results)
-        std::printf("%-34s %9.3f %8.2f %9.0f%% %10.2f %8ld  %s\n", r.name.c_str(), r.sec, serial / r.sec,
+        std::printf("%-34s %9.3f %8.2f %9.0f%% %10.2f %8ld %10.1e  %s\n", r.name.c_str(), r.sec, serial / r.sec,
                     100 * serial / r.sec / (r.name.rfind("SIMD packets (1", 0) == 0 || r.name == "serial" ? 1 : nthreads),
-                    r.imbalance, r.mismatches, r.note.c_str());
+                    r.imbalance, r.mismatches, r.max_rel, r.note.c_str());
 
     // cost distribution: how uneven is the work?
     std::vector<long> st(ref.steps.begin(), ref.steps.end());

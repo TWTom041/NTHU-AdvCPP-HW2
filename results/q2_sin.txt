@@ -1,0 +1,37 @@
+$ build/q2_sin 200000
+ULP error vs MPFR, 200000 random inputs per range  (max ulp / % correctly rounded)
+range (glibc branch)   | glibc sin         | mini_sin (fdlibm) | x87 fsin          | glibc sinl        | glibc sinf        | libquadmath sinq 
+[2^-26, 0.855469)      |    0.514 / 100.0% |    1.068 /  99.5% |    0.682 /  99.6% |    0.519 / 100.0% |    0.558 /  99.6% |    0.521 /  99.9%
+[0.855469, 2.426265)   |    0.503 /  99.9% |    1.098 /  90.1% |    0.584 /  97.8% |    0.521 /  99.9% |    0.544 /  99.8% |    0.552 /  99.7%
+[2.426265, 105414350)  |    0.515 /  99.9% |  1.1e+12 /  74.8% |  2.7e+10 /  12.6% |    1.404 /  97.3% |    0.558 /  98.7% |    1.126 /  97.3%
+[105414350, 1e300]     |    0.514 /  99.9% |      inf /   0.0% |  1.2e+19 /   0.0% |    1.184 /  97.4% |    0.558 /  98.7% |    1.211 /  97.3%
+
+Hard inputs (value printed with 17 significant digits, error in ulp)
+x                          sin(x) glibc                    glibc   mini_sin   x87 fsin
+3.1415926535897931         1.2246467991473532e-16          0.121      0.121   1.64e+11
+6.2831853071795862         -2.4492935982947064e-16         0.121      0.121   1.64e+11
+355                        -3.0144353359488451e-05         0.384      0.384        135
+103993                     -1.9129335778423752e-05          0.49       0.49   3.95e+04
+1e+22                      -0.85220084976718879           0.0611   3.63e+87        nan
+5.3193726483265414e+255    1                            9.89e-22        nan        nan
+
+Time per call [ns] (glibc sin, 1M calls per range, independent inputs)
+  [2^-26, 0.855469)      glibc    6.4   mini_sin    3.1   x87 fsin   38.0   sinl   16.9
+  [0.855469, 2.426265)   glibc    6.4   mini_sin   15.6   x87 fsin   47.9   sinl  173.9
+  [2.426265, 105414350)  glibc   22.8   mini_sin   18.9   x87 fsin   43.5   sinl  177.9
+  [105414350, 1e300]     glibc   70.6   mini_sin    7.8   x87 fsin   25.9   sinl  179.1
+
+Special values
+  sin(+0      ) = 0             errno=0      FE_INVALID=0 FE_UNDERFLOW=0 FE_INEXACT=0
+  sin(-0      ) = -0            errno=0      FE_INVALID=0 FE_UNDERFLOW=0 FE_INEXACT=0
+  sin(1e-310  ) = 1e-310        errno=0      FE_INVALID=0 FE_UNDERFLOW=1 FE_INEXACT=1
+  sin(+inf    ) = -nan          errno=EDOM   FE_INVALID=1 FE_UNDERFLOW=0 FE_INEXACT=0
+  sin(NaN     ) = nan           errno=0      FE_INVALID=0 FE_UNDERFLOW=0 FE_INEXACT=0
+  sin(1       ) = 0.841471      errno=0      FE_INVALID=0 FE_UNDERFLOW=0 FE_INEXACT=1
+
+$ ./scripts/which_sin.sh build/q2_ifunc
+sin resolved to 0x7fb79487f2d0 = /lib/x86_64-linux-gnu/libm.so.6 + 0x7b2d0  -> 36 FMA instructions in the first 1200 bytes (GLIBC_TUNABLES=<unset>)
+
+$ env GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA ./scripts/which_sin.sh build/q2_ifunc
+sin resolved to 0x7f27e9a1b8c0 = /lib/x86_64-linux-gnu/libm.so.6 + 0x848c0  -> 0 FMA instructions in the first 1200 bytes (GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA)
+

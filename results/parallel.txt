@@ -1,0 +1,58 @@
+$ build/parallel_bench --res 256 --reps 3 --type double
+  std::thread static block           2.210 s
+  std::thread static cyclic rows     1.706 s
+  std::thread dynamic (atomic, 16)   1.658 s
+  OpenMP schedule(static)            2.192 s
+  OpenMP schedule(static,1)          1.636 s
+  OpenMP schedule(dynamic,16)        1.587 s
+  OpenMP schedule(guided)            2.211 s
+  std::for_each(execution::par)      1.582 s
+  SIMD packets (1 thread)            1.391 s
+  SIMD packets + OpenMP dynamic      0.344 s
+
+double, 256x256 rays, 4 threads (hardware_concurrency=4), best of 3
+technique                           time [s]  speedup efficiency  imbalance status!= max rel dI  note
+serial                                 6.392     1.00       100%       1.00        0    0.0e+00  
+std::thread static block               2.210     2.89        72%       1.36        0    0.0e+00  
+std::thread static cyclic rows         1.706     3.75        94%       1.03        0    0.0e+00  
+std::thread dynamic (atomic, 16)       1.658     3.85        96%       1.00        0    0.0e+00  
+OpenMP schedule(static)                2.192     2.92        73%       1.37        0    0.0e+00  
+OpenMP schedule(static,1)              1.636     3.91        98%       1.01        0    0.0e+00  
+OpenMP schedule(dynamic,16)            1.587     4.03       101%       1.00        0    0.0e+00  
+OpenMP schedule(guided)                2.211     2.89        72%       1.33        0    0.0e+00  
+std::for_each(execution::par)          1.582     4.04       101%       1.00        0    0.0e+00  TBB, busy time n/a
+SIMD packets (1 thread)                1.391     4.60       460%       1.00        0    4.9e-14  lanes=8, lane utilisation 97%
+SIMD packets + OpenMP dynamic          0.344    18.55       464%       1.00        0    4.9e-14  
+steps per ray: min 219  median 565  p99 816  max 1366
+
+False sharing, 4 threads x 20000000 relaxed atomic increments on per-thread counters
+  packed  (adjacent, share one 64-byte line): 1.444 s  (72.20 ns/inc)
+  padded  (alignas(64), one line per counter): 0.143 s  (7.17 ns/inc)   -> 10.1x faster
+
+$ build/parallel_bench --res 256 --reps 3 --type float --false-sharing 0
+  std::thread static block           2.875 s
+  std::thread static cyclic rows     2.157 s
+  std::thread dynamic (atomic, 16)   2.060 s
+  OpenMP schedule(static)            2.823 s
+  OpenMP schedule(static,1)          2.117 s
+  OpenMP schedule(dynamic,16)        2.058 s
+  OpenMP schedule(guided)            2.844 s
+  std::for_each(execution::par)      2.084 s
+  SIMD packets (1 thread)            0.542 s
+  SIMD packets + OpenMP dynamic      0.136 s
+
+float, 256x256 rays, 4 threads (hardware_concurrency=4), best of 3
+technique                           time [s]  speedup efficiency  imbalance status!= max rel dI  note
+serial                                 8.153     1.00       100%       1.00        0    0.0e+00  
+std::thread static block               2.875     2.84        71%       1.33        0    0.0e+00  
+std::thread static cyclic rows         2.157     3.78        95%       1.02        0    0.0e+00  
+std::thread dynamic (atomic, 16)       2.060     3.96        99%       1.00        0    0.0e+00  
+OpenMP schedule(static)                2.823     2.89        72%       1.36        0    0.0e+00  
+OpenMP schedule(static,1)              2.117     3.85        96%       1.02        0    0.0e+00  
+OpenMP schedule(dynamic,16)            2.058     3.96        99%       1.00        0    0.0e+00  
+OpenMP schedule(guided)                2.844     2.87        72%       1.36        0    0.0e+00  
+std::for_each(execution::par)          2.084     3.91        98%       1.00        0    0.0e+00  TBB, busy time n/a
+SIMD packets (1 thread)                0.542    15.06      1506%       1.00        0    1.7e-04  lanes=16, lane utilisation 94%
+SIMD packets + OpenMP dynamic          0.136    60.12      1503%       1.00        0    1.7e-04  
+steps per ray: min 219  median 565  p99 816  max 1366
+

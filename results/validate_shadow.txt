@@ -9,3 +9,5 @@ float        dp45     1e-07     12 | rel. edge error: mean 8.292e-08  max 2.269e
 double       dp45     1e-09     12 | rel. edge error: mean 4.093e-10  max 9.570e-10 |     1.05 s  507905 steps
 double       dp45     1e-12     12 | rel. edge error: mean 5.266e-13  max 1.040e-12 |     1.59 s  2032693 steps
 long double  dp45     1e-14     12 | rel. edge error: mean 4.947e-15  max 1.022e-14 |     9.06 s  5123461 steps
+__float128   dp45     1e-15     12 | rel. edge error: mean 5.153e-16  max 1.016e-15 |   229.56 s  8111855 steps
+

@@ -1,0 +1,90 @@
+$ build/raptor_compare --res 100 --method rk4 --step 0.03 --dump build/raptor_cmp_rk4.bin
+RAPTOR vs this engine: a=0.9375 i=60 fov=40 res=100 method=rk4 STEPSIZE=0.03 margin=0.1
+  max rel. difference of initial (r,th,p_r,p_th,p_phi): 2.930e-14
+                                   RAPTOR       engine    reference
+  captured rays                       486          486          486
+  time [s] (1 thread)               3.659        1.348
+  mean steps / ray                  638.0        638.0
+  ns / step                         573.5        211.3
+  max |dE| (E=p_t)              9.349e-06    0.000e+00
+  max |dL| (L=p_phi)            2.305e-05    4.486e-15
+  max |dQ|/max(1,Q)             9.663e-06    2.547e-06
+  max |g^ab p_a p_b|            1.836e-04    4.159e-04
+  status agreement: RAPTOR-engine 100.0000%  RAPTOR-ref 100.0000%  engine-ref 100.0000%
+  escaping rays (9514): angle between final directions at r = 1.01e4 [rad]
+    RAPTOR - reference   median 9.423e-08   p99 5.997e-06   max 1.877e-03
+    engine - reference   median 8.450e-09   p99 2.516e-08   max 5.422e-06
+    RAPTOR - engine      median 8.586e-08   p99 5.963e-06   max 1.874e-03
+
+$ build/raptor_compare --res 100 --method rk4 --step 0.01
+RAPTOR vs this engine: a=0.9375 i=60 fov=40 res=100 method=rk4 STEPSIZE=0.01 margin=0.1
+  max rel. difference of initial (r,th,p_r,p_th,p_phi): 2.930e-14
+                                   RAPTOR       engine    reference
+  captured rays                       486          486          486
+  time [s] (1 thread)              11.155        4.138
+  mean steps / ray                 1913.7       1913.7
+  ns / step                         582.9        216.3
+  max |dE| (E=p_t)              1.081e-07    0.000e+00
+  max |dL| (L=p_phi)            2.687e-07    4.486e-15
+  max |dQ|/max(1,Q)             1.065e-07    2.727e-08
+  max |g^ab p_a p_b|            2.068e-06    2.676e-06
+  status agreement: RAPTOR-engine 100.0000%  RAPTOR-ref 100.0000%  engine-ref 100.0000%
+  escaping rays (9514): angle between final directions at r = 1.01e4 [rad]
+    RAPTOR - reference   median 1.049e-09   p99 6.956e-08   max 2.171e-05
+    engine - reference   median 1.035e-10   p99 3.041e-10   max 6.492e-08
+    RAPTOR - engine      median 9.472e-10   p99 6.915e-08   max 2.167e-05
+
+$ build/raptor_compare --res 100 --method rk2 --step 0.03
+RAPTOR vs this engine: a=0.9375 i=60 fov=40 res=100 method=rk2 STEPSIZE=0.03 margin=0.1
+  max rel. difference of initial (r,th,p_r,p_th,p_phi): 2.930e-14
+                                   RAPTOR       engine    reference
+  captured rays                       499          486          486
+  time [s] (1 thread)               1.930        0.717
+  mean steps / ray                  639.0        638.0
+  ns / step                         302.0        112.4
+  max |dE| (E=p_t)              1.052e-02    0.000e+00
+  max |dL| (L=p_phi)            4.015e-02    4.486e-15
+  max |dQ|/max(1,Q)             4.413e-02    2.394e-03
+  max |g^ab p_a p_b|            1.912e-01    8.391e-02
+  status agreement: RAPTOR-engine 99.8700%  RAPTOR-ref 99.8700%  engine-ref 100.0000%
+  escaping rays (9501): angle between final directions at r = 1.01e4 [rad]
+    RAPTOR - reference   median 4.131e-03   p99 1.173e-01   max 2.516e+00
+    engine - reference   median 2.605e-04   p99 9.066e-04   max 1.244e-02
+    RAPTOR - engine      median 4.377e-03   p99 1.179e-01   max 2.522e+00
+
+$ build/raptor_compare_ofast --res 100 --method rk4 --step 0.03
+RAPTOR vs this engine: a=0.9375 i=60 fov=40 res=100 method=rk4 STEPSIZE=0.03 margin=0.1
+  max rel. difference of initial (r,th,p_r,p_th,p_phi): 2.954e-14
+                                   RAPTOR       engine    reference
+  captured rays                       486          486          486
+  time [s] (1 thread)               4.343        1.462
+  mean steps / ray                  638.0        638.0
+  ns / step                         680.8        229.1
+  max |dE| (E=p_t)              9.349e-06    0.000e+00
+  max |dL| (L=p_phi)            2.305e-05    4.486e-15
+  max |dQ|/max(1,Q)             9.663e-06    2.547e-06
+  max |g^ab p_a p_b|            1.836e-04    4.159e-04
+  status agreement: RAPTOR-engine 100.0000%  RAPTOR-ref 100.0000%  engine-ref 100.0000%
+  escaping rays (9514): angle between final directions at r = 1.01e4 [rad]
+    RAPTOR - reference   median 9.423e-08   p99 5.997e-06   max 1.877e-03
+    engine - reference   median 8.450e-09   p99 2.516e-08   max 5.422e-06
+    RAPTOR - engine      median 8.586e-08   p99 5.963e-06   max 1.874e-03
+
+$ build/raptor_compare --res 100 --method rk4 --step 0.03 --margin 0.01
+RAPTOR vs this engine: a=0.9375 i=60 fov=40 res=100 method=rk4 STEPSIZE=0.03 margin=0.01
+  max rel. difference of initial (r,th,p_r,p_th,p_phi): 2.930e-14
+                                   RAPTOR       engine    reference
+  captured rays                       486          486          486
+  time [s] (1 thread)               3.746        1.413
+  mean steps / ray                  647.6        647.6
+  ns / step                         578.5        218.1
+  max |dE| (E=p_t)              9.362e-06    0.000e+00
+  max |dL| (L=p_phi)            2.307e-05    4.486e-15
+  max |dQ|/max(1,Q)             1.283e-05    4.799e-06
+  max |g^ab p_a p_b|            2.076e-04    4.274e-04
+  status agreement: RAPTOR-engine 100.0000%  RAPTOR-ref 100.0000%  engine-ref 100.0000%
+  escaping rays (9514): angle between final directions at r = 1.01e4 [rad]
+    RAPTOR - reference   median 9.423e-08   p99 5.997e-06   max 1.877e-03
+    engine - reference   median 8.450e-09   p99 2.516e-08   max 5.422e-06
+    RAPTOR - engine      median 8.586e-08   p99 5.963e-06   max 1.874e-03
+

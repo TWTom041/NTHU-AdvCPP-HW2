@@ -1,0 +1,56 @@
+$ build/cache_patterns row float 4096
+row float n=4096 sum=45697936.0 time=0.016 s (0.94 ns/element)
+
+$ build/cache_patterns row double 4096
+row double n=4096 sum=50331645.0 time=0.024 s (1.41 ns/element)
+
+$ build/cache_patterns col float 4096
+col float n=4096 sum=45697936.0 time=0.164 s (9.76 ns/element)
+
+$ build/cache_patterns col double 4096
+col double n=4096 sum=50331645.0 time=0.208 s (12.40 ns/element)
+
+$ bash -c valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file=/dev/null       build/cache_patterns row float 2048 2>&1 | grep -E 'n=|D   refs|D1  miss|LLd miss|D1  miss rate|LLd miss rate'
+row float n=2048 sum=12582907.0 time=0.042 s (9.90 ns/element)
+==4127== D1  misses:       801,018  (  274,523 rd   +    526,495 wr)
+==4127== LLd misses:       271,099  (    7,546 rd   +    263,553 wr)
+==4127== D1  miss rate:        3.1% (      5.8%     +        2.5%  )
+==4127== LLd miss rate:        1.0% (      0.2%     +        1.2%  )
+
+$ bash -c valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file=/dev/null       build/cache_patterns row double 2048 2>&1 | grep -E 'n=|D   refs|D1  miss|LLd miss|D1  miss rate|LLd miss rate'
+row double n=2048 sum=12582907.0 time=0.049 s (11.68 ns/element)
+==4132== D1  misses:      1,587,451  (  536,668 rd   +  1,050,783 wr)
+==4132== LLd misses:        533,243  (    7,546 rd   +    525,697 wr)
+==4132== D1  miss rate:         3.7% (     11.4%     +        2.8%  )
+==4132== LLd miss rate:         1.3% (      0.2%     +        1.4%  )
+
+$ bash -c valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file=/dev/null       build/cache_patterns col float 2048 2>&1 | grep -E 'n=|D   refs|D1  miss|LLd miss|D1  miss rate|LLd miss rate'
+col float n=2048 sum=12582907.0 time=0.204 s (48.59 ns/element)
+==4137== D1  misses:      4,733,177  (4,206,682 rd   +    526,495 wr)
+==4137== LLd misses:        271,099  (    7,546 rd   +    263,553 wr)
+==4137== D1  miss rate:        18.3% (     89.3%     +        2.5%  )
+==4137== LLd miss rate:         1.0% (      0.2%     +        1.2%  )
+
+$ bash -c valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file=/dev/null       build/cache_patterns col double 2048 2>&1 | grep -E 'n=|D   refs|D1  miss|LLd miss|D1  miss rate|LLd miss rate'
+col double n=2048 sum=12582907.0 time=0.200 s (47.63 ns/element)
+==4145== D1  misses:      5,257,466  (4,206,683 rd   +  1,050,783 wr)
+==4145== LLd misses:        533,243  (    7,546 rd   +    525,697 wr)
+==4145== D1  miss rate:        12.3% (     89.3%     +        2.8%  )
+==4145== LLd miss rate:         1.3% (      0.2%     +        1.4%  )
+
+$ bash -c valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file=/dev/null       build/kerr_render_serial --type float --res 24 --disk 2>&1 | grep -E 'type=|I   refs|I1  miss rate|D   refs|D1  miss|LLd miss|D1  miss rate|LLd miss rate'
+type=float method=rk4 spin=0.9375 incl=60 res=24  time=1.821 s  (316 rays/s, 6637.4 ns/step)
+==4156== I1  miss rate:        0.00%
+==4156== D1  misses:         15,605  (    12,987 rd   +      2,618 wr)
+==4156== LLd misses:          9,754  (     7,913 rd   +      1,841 wr)
+==4156== D1  miss rate:         0.0% (       0.0%     +        0.0%  )
+==4156== LLd miss rate:         0.0% (       0.0%     +        0.0%  )
+
+$ bash -c valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file=/dev/null       build/kerr_render_serial --type double --res 24 --disk 2>&1 | grep -E 'type=|I   refs|I1  miss rate|D   refs|D1  miss|LLd miss|D1  miss rate|LLd miss rate'
+type=double method=rk4 spin=0.9375 incl=60 res=24  time=3.201 s  (180 rays/s, 11670.9 ns/step)
+==4164== I1  miss rate:        0.00%
+==4164== D1  misses:         15,693  (    13,069 rd   +      2,624 wr)
+==4164== LLd misses:          9,813  (     7,975 rd   +      1,838 wr)
+==4164== D1  miss rate:         0.0% (       0.0%     +        0.0%  )
+==4164== LLd miss rate:         0.0% (       0.0%     +        0.0%  )
+

@@ -1,0 +1,106 @@
+$ build/q5_x86_glibc build/q5_x86_glibc.bin
+platform: x86-64 / glibc 2.39, sizeof(long double)=16, LDBL_MANT_DIG=64, FLT_EVAL_METHOD=0
+[1] 0.1*10 - 1          = 0
+    b*b-4ac (double root) = 0  -> sqrt = 0
+[2] (1.0L + 1e-17L) - 1.0L = 9.97466e-18
+    sum of ten 0.1L == 1.0L ? no  (diff 1.08e-19)
+[3] libm hashes over 1000000 deterministic inputs:
+    sin=929b cos=a010 tan=0459 exp=a79e log=75c0 pow=4357 atan2=ccc5 cbrt=1e75 sinh=914f lgamma=bc45 
+
+$ env GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA build/q5_x86_glibc build/q5_x86_glibc_nofma.bin
+platform: x86-64 / glibc 2.39, sizeof(long double)=16, LDBL_MANT_DIG=64, FLT_EVAL_METHOD=0
+[1] 0.1*10 - 1          = 0
+    b*b-4ac (double root) = 0  -> sqrt = 0
+[2] (1.0L + 1e-17L) - 1.0L = 9.97466e-18
+    sum of ten 0.1L == 1.0L ? no  (diff 1.08e-19)
+[3] libm hashes over 1000000 deterministic inputs:
+    sin=52f1 cos=7867 tan=63db exp=f2f9 log=3d4f pow=579d atan2=fa88 cbrt=1e75 sinh=a571 lgamma=8a17 
+
+$ build/q5_x86_musl build/q5_x86_musl.bin
+platform: x86-64 / musl, sizeof(long double)=16, LDBL_MANT_DIG=64, FLT_EVAL_METHOD=0
+[1] 0.1*10 - 1          = 0
+    b*b-4ac (double root) = 0  -> sqrt = 0
+[2] (1.0L + 1e-17L) - 1.0L = 9.97466e-18
+    sum of ten 0.1L == 1.0L ? no  (diff 1.08e-19)
+[3] libm hashes over 1000000 deterministic inputs:
+    sin=d58a cos=b07f tan=3430 exp=f2f9 log=3d4f pow=579d atan2=0238 cbrt=c637 sinh=3704 lgamma=8a17 
+
+$ qemu-aarch64 -L /usr/aarch64-linux-gnu build/q5_arm_glibc build/q5_arm_glibc.bin
+platform: aarch64 / glibc 2.39, sizeof(long double)=16, LDBL_MANT_DIG=113, FLT_EVAL_METHOD=0
+[1] 0.1*10 - 1          = 5.5511151231257827e-17
+    b*b-4ac (double root) = 8.8817841970012602e-18  -> sqrt = 2.98023e-09
+[2] (1.0L + 1e-17L) - 1.0L = 1e-17
+    sum of ten 0.1L == 1.0L ? no  (diff -9.63e-35)
+[3] libm hashes over 1000000 deterministic inputs:
+    sin=929b cos=a010 tan=0459 exp=a79e log=75c0 pow=4357 atan2=ccc5 cbrt=88ab sinh=914f lgamma=4dbd 
+
+$ python3 scripts/compare.py libm build/q5_x86_glibc.bin build/q5_x86_glibc_nofma.bin glibc(FMA ifunc) glibc(-AVX2,-FMA)
+libm results that differ between glibc(FMA ifunc) and glibc(-AVX2,-FMA) (1000000 inputs each):
+  sin          686 differ ( 0.069%)  max 1 ulp
+  cos          695 differ ( 0.069%)  max 1 ulp
+  tan           10 differ ( 0.001%)  max 1 ulp
+  exp          611 differ ( 0.061%)  max 1 ulp
+  log            1 differ ( 0.000%)  max 1 ulp
+  pow          726 differ ( 0.073%)  max 1 ulp
+  atan2        279 differ ( 0.028%)  max 1 ulp
+  cbrt           0 differ ( 0.000%)  max 0 ulp
+  sinh         613 differ ( 0.061%)  max 2 ulp
+  lgamma         8 differ ( 0.001%)  max 2 ulp
+
+$ python3 scripts/compare.py libm build/q5_x86_glibc.bin build/q5_x86_musl.bin x86-64 glibc x86-64 musl
+libm results that differ between x86-64 glibc and x86-64 musl (1000000 inputs each):
+  sin        31377 differ ( 3.138%)  max 1 ulp
+  cos        31031 differ ( 3.103%)  max 1 ulp
+  tan        35615 differ ( 3.562%)  max 1 ulp
+  exp          611 differ ( 0.061%)  max 1 ulp
+  log            1 differ ( 0.000%)  max 1 ulp
+  pow          726 differ ( 0.073%)  max 1 ulp
+  atan2     177733 differ (17.773%)  max 1 ulp
+  cbrt      496976 differ (49.698%)  max 3 ulp
+  sinh         813 differ ( 0.081%)  max 2 ulp
+  lgamma         8 differ ( 0.001%)  max 2 ulp
+
+$ python3 scripts/compare.py libm build/q5_x86_glibc.bin build/q5_arm_glibc.bin x86-64 glibc aarch64 glibc
+libm results that differ between x86-64 glibc and aarch64 glibc (1000000 inputs each):
+  sin            0 differ ( 0.000%)  max 0 ulp
+  cos            0 differ ( 0.000%)  max 0 ulp
+  tan            0 differ ( 0.000%)  max 0 ulp
+  exp            0 differ ( 0.000%)  max 0 ulp
+  log            0 differ ( 0.000%)  max 0 ulp
+  pow            0 differ ( 0.000%)  max 0 ulp
+  atan2          0 differ ( 0.000%)  max 0 ulp
+  cbrt      189022 differ (18.902%)  max 4 ulp
+  sinh           0 differ ( 0.000%)  max 0 ulp
+  lgamma    231694 differ (23.169%)  max 1 ulp
+
+$ build/kerr_render --res 96 --disk --out build/q5_kerr_x86.bin
+type=double method=rk4 spin=0.9375 incl=60 res=96  time=0.241 s  (38171 rays/s, 54.8 ns/step)
+captured=170 escaped=4598 disk=4448 maxsteps=0 notfinite=0  mean steps=477.9  flux=2.0203986775e+00
+
+$ qemu-aarch64 -L /usr/aarch64-linux-gnu build/kerr_render_arm --res 96 --disk --out build/q5_kerr_arm.bin
+type=double method=rk4 spin=0.9375 incl=60 res=96  time=5.232 s  (1761 rays/s, 1188.0 ns/step)
+captured=170 escaped=4598 disk=4448 maxsteps=0 notfinite=0  mean steps=477.9  flux=2.0203986775e+00
+
+$ python3 scripts/compare.py kimg build/q5_kerr_x86.bin build/q5_kerr_arm.bin x86-64 aarch64
+x86-64 vs aarch64: 9216 pixels, status differs 0, intensity bitwise differs 4054 (44.0%), final theta differs 5714, max rel. intensity diff 5.476e-14, flux 2.0203986775215697 vs 2.0203986775215692
+
+$ bash -c aarch64-linux-gnu-objdump -d build/q5_arm_glibc | grep -A1 '<mul_sub>:'; objdump -d build/q5_x86_glibc | grep -A3 '<mul_sub>:'
+0000000000001320 <mul_sub>:
+    1320:	1f618800 	fnmsub	d0, d0, d1, d2
+0000000000002020 <mul_sub>:
+    2020:	f3 0f 1e fa          	endbr64
+    2024:	f2 0f 59 c1          	mulsd  %xmm1,%xmm0
+    2028:	f2 0f 5c c2          	subsd  %xmm2,%xmm0
+
+$ env OMP_NUM_THREADS=1 build/q5_threads
+threads=1  parallel sum = 2409164.5612163064   serial sum = 2409164.5612163064   diff = 0
+
+$ env OMP_NUM_THREADS=2 build/q5_threads
+threads=2  parallel sum = 2409164.5612166366   serial sum = 2409164.5612163064   diff = 3.3e-07
+
+$ env OMP_NUM_THREADS=3 build/q5_threads
+threads=3  parallel sum = 2409164.5612161369   serial sum = 2409164.5612163064   diff = -1.7e-07
+
+$ env OMP_NUM_THREADS=4 build/q5_threads
+threads=4  parallel sum = 2409164.5612164908   serial sum = 2409164.5612163064   diff = 1.84e-07
+

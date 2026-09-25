@@ -1,0 +1,11 @@
+$ build/kerr_validate --angles 12
+Shadow edge vs Bardeen critical curve  (a=0.9375, i=60 deg, 12 angles)
+type         meth     tol/h   angles
+double       rk4      3e-02     12 | rel. edge error: mean 1.646e-09  max 2.937e-09 |     1.06 s  1361120 steps
+double       rk4      1e-02     12 | rel. edge error: mean 1.936e-11  max 3.448e-11 |     1.63 s  4081056 steps
+double       rk4      3e-03     12 | rel. edge error: mean 1.539e-13  max 2.808e-13 |     3.63 s  13614916 steps
+float        dp45     1e-06     12 | rel. edge error: mean 1.223e-07  max 2.297e-07 |     0.84 s  112006 steps
+float        dp45     1e-07     12 | rel. edge error: mean 8.292e-08  max 2.269e-07 |     0.84 s  162985 steps
+double       dp45     1e-09     12 | rel. edge error: mean 4.093e-10  max 9.570e-10 |     1.05 s  507905 steps
+double       dp45     1e-12     12 | rel. edge error: mean 5.266e-13  max 1.040e-12 |     1.59 s  2032693 steps
+long double  dp45     1e-14     12 | rel. edge error: mean 4.947e-15  max 1.022e-14 |     9.06 s  5123461 steps

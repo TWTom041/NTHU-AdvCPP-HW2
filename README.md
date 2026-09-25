@@ -60,3 +60,37 @@ std::fixed << setprecision(9)
 
 ### Q7. AI 使用自我揭露 (不記入作業分數)
 簡要描述你自己做了什麼，請 AI 幫你做了什麼。
+
+---
+
+## 實作：Kerr 黑洞測地線模擬引擎 + 浮點數實驗
+
+報告以「黑洞光線追跡 (general-relativistic ray tracing)」這個真實的科學計算問題作為主軸：
+自行實作一個 C++ Kerr 時空零測地線 (null geodesic) 模擬引擎，並與天文界實際使用的
+[RAPTOR](https://github.com/tbronzwaer/raptor)（Bronzwaer et al. 2018, A&A 613, A2）逐條光線比對，
+再用這個引擎與一系列小實驗回答 Q0–Q7。報告本體：[`report/report.md`](report/report.md)（PDF 由 `scripts/build_report.py` 產生）。
+
+### 目錄
+
+| 路徑 | 內容 |
+|---|---|
+| `include/kerr/` | header-only 引擎：`real_math.hpp`（float/double/long double/`__float128`/`std::float16_t`/SIMD 的數學函式包裝）、`kerr.hpp`（Kerr–Schild 座標下的 Hamiltonian 測地線方程、相機、薄盤）、`tracer.hpp`（RK2/RK4/Dormand–Prince 5(4) 積分器）、`render.hpp`、`critical_curve.hpp`（Bardeen 解析陰影邊界） |
+| `src/kerr_render.cpp` | 產生黑洞影像（可選浮點型別、積分器） |
+| `src/kerr_validate.cpp` | 與解析解（Kerr 陰影邊界）比對，驗證收斂階數與各型別精度極限 |
+| `src/raptor_compare.cpp`, `raptor_bridge/` | 以 RAPTOR 原始碼（未修改）逐條光線與本引擎比對 |
+| `src/kerr_precision.cpp` | Q1：同一個光線追跡工作量在各浮點型別下的速度與 round-off |
+| `src/parallel_bench.cpp` | 平行化技術比較：std::thread / OpenMP 各種 schedule / `std::execution::par` / `std::experimental::simd` 光線封包 / false sharing |
+| `experiments/` | Q1 micro-benchmark、快取實驗、Q2 `sin`、Q3 `-ffast-math`、Q4 `printf`、Q5 跨平台、Q6 額外細節 |
+| `scripts/` | `fetch_raptor.sh`、`run_all.sh`（跑全部實驗 → `results/`）、`make_figures.py`、`screenshots.js`、`build_report.py` |
+| `results/` | 所有實驗的原始終端輸出（報告中的數據都出自這裡） |
+
+### 重現
+
+```bash
+# Ubuntu 24.04: build-essential libgsl-dev libmpfr-dev libgmp-dev libtbb-dev valgrind
+#               g++-aarch64-linux-gnu qemu-user musl-tools python3-numpy python3-matplotlib
+make raptor              # 下載 RAPTOR（固定 commit 08cb9a2）
+make all cross           # 編譯全部（含 aarch64 / musl 版本）
+./scripts/run_all.sh     # 約 30 分鐘，輸出到 results/
+python3 scripts/make_figures.py && node scripts/screenshots.js && python3 scripts/build_report.py
+```
